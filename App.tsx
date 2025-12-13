@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, GripVertical, Settings2, Command, Sun, Moon, ArrowLeft, Zap, ZapOff } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, GripVertical, Settings2, Command, Sun, Moon, ArrowLeft, Square } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
@@ -72,9 +72,8 @@ const App: React.FC = () => {
     setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
     setLogs([]);
     
-    // Auto-enable live mode for browser-based interpreters
-    // Disable for cloud/AI to prevent API quota usage and latency
-    setIsLiveMode(interpreter.type === 'browser');
+    // Default to manual mode
+    setIsLiveMode(false);
   };
 
   const handleBackToSelection = () => {
@@ -128,17 +127,6 @@ const App: React.FC = () => {
 
     setIsRunning(true);
     handleClearLogs();
-    
-    // Auto switch for mobile
-    if (window.innerWidth < 768) {
-        // If it's a browser run, go to preview, otherwise console.
-        // However, AI might return visual output, so we might switch dynamically later.
-        if (selectedInterpreter.type === 'browser') {
-           setMobileActiveTab('preview');
-        } else {
-           setMobileActiveTab('console');
-        }
-    }
 
     if (selectedInterpreter.type === 'browser') {
       // Browser Execution
@@ -186,6 +174,28 @@ const App: React.FC = () => {
 
   }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter]);
 
+  const toggleRun = useCallback(() => {
+    // Explicit User Action - Switch Tabs on Mobile
+    if (window.innerWidth < 768) {
+        if (selectedInterpreter?.type === 'browser') {
+           setMobileActiveTab('preview');
+        } else {
+           setMobileActiveTab('console');
+        }
+    }
+
+    if (selectedInterpreter?.type === 'browser') {
+        if (isLiveMode) {
+            setIsLiveMode(false);
+        } else {
+            setIsLiveMode(true);
+            handleRun();
+        }
+    } else {
+        handleRun();
+    }
+  }, [selectedInterpreter, isLiveMode, handleRun]);
+
   // Live Mode Debounce Effect
   useEffect(() => {
     if (!isLiveMode || !selectedInterpreter || selectedInterpreter.type !== 'browser') return;
@@ -213,6 +223,10 @@ const App: React.FC = () => {
   const handleCodeGenerated = (newCode: string) => {
     setCode(newCode);
     setTimeout(() => {
+       if (window.innerWidth < 768) {
+           if (selectedInterpreter?.type === 'browser') setMobileActiveTab('preview');
+           else setMobileActiveTab('console');
+       }
        handleRun();
     }, 100);
   };
@@ -273,22 +287,6 @@ const App: React.FC = () => {
            </button>
 
            <div className="hidden md:flex items-center gap-2 mr-2">
-              {/* Toggle Live Mode (Only for Browser Interpreters) */}
-              {selectedInterpreter.type === 'browser' && (
-                <button
-                  onClick={() => setIsLiveMode(!isLiveMode)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold text-xs transition-all border ${
-                    isLiveMode 
-                      ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' 
-                      : 'bg-transparent text-gray-500 border-transparent hover:bg-gray-100 dark:hover:bg-white/5'
-                  }`}
-                  title={isLiveMode ? "Disable Live Preview" : "Enable Live Preview"}
-                >
-                  {isLiveMode ? <Zap className="w-3.5 h-3.5 fill-current" /> : <ZapOff className="w-3.5 h-3.5" />}
-                  <span>{isLiveMode ? 'Live' : 'Manual'}</span>
-                </button>
-              )}
-
               <button onClick={() => setIsAIModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-white/5 hover:bg-indigo-100 dark:hover:bg-white/10 border border-indigo-200 dark:border-white/5 text-xs font-medium text-indigo-600 dark:text-indigo-300 transition-all hover:border-indigo-300 dark:hover:border-indigo-500/30">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>AI Assist</span>
@@ -299,17 +297,30 @@ const App: React.FC = () => {
            </div>
 
            <button
-             onClick={handleRun}
+             onClick={toggleRun}
              disabled={isRunning}
              className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-semibold text-xs transition-all shadow-lg
                ${isRunning 
                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
-                 : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'
+                 : isLiveMode && selectedInterpreter.type === 'browser'
+                    ? 'bg-red-500 text-white hover:bg-red-600 shadow-red-500/20' 
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'
                }`}
            >
-             {isRunning ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <Play className="w-3.5 h-3.5 fill-current" />}
-             <span className="hidden sm:inline">{isRunning ? 'Running...' : 'Run Code'}</span>
-             <span className="sm:hidden">{isRunning ? '...' : 'Run'}</span>
+             {isRunning ? (
+                <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/>
+             ) : (
+                isLiveMode && selectedInterpreter.type === 'browser' ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />
+             )}
+             
+             <span className="hidden sm:inline">
+                {isRunning 
+                    ? 'Running...' 
+                    : (isLiveMode && selectedInterpreter.type === 'browser' ? 'Stop Live' : 'Run')}
+             </span>
+             <span className="sm:hidden">
+                {isRunning ? '...' : (isLiveMode && selectedInterpreter.type === 'browser' ? 'Stop' : 'Run')}
+             </span>
            </button>
         </div>
       </header>
@@ -325,7 +336,7 @@ const App: React.FC = () => {
                     code={code} 
                     onChange={setCode} 
                     language={selectedLanguage}
-                    onRun={handleRun}
+                    onRun={toggleRun}
                     onAI={() => setIsAIModalOpen(true)}
                     onChangeSettings={handleBackToSelection}
                 />
@@ -349,7 +360,7 @@ const App: React.FC = () => {
                 code={code} 
                 onChange={setCode} 
                 language={selectedLanguage}
-                onRun={handleRun}
+                onRun={toggleRun}
                 onAI={() => setIsAIModalOpen(true)}
                 onChangeSettings={handleBackToSelection}
               />
@@ -414,8 +425,8 @@ const App: React.FC = () => {
       <footer className="hidden md:flex h-7 bg-white dark:bg-[#050505] border-t border-gray-200 dark:border-white/10 px-3 items-center justify-between text-[10px] text-gray-500 select-none shrink-0 z-40 transition-colors">
         <div className="flex items-center gap-3">
            <div className="flex items-center gap-1.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-              <span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Running...' : (isLiveMode ? 'Live Preview Active' : 'Ready')}</span>
+              <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : (isLiveMode ? 'bg-red-500 animate-pulse' : 'bg-emerald-500')}`}></div>
+              <span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Running...' : (isLiveMode ? 'Live Mode Active' : 'Ready')}</span>
            </div>
            <div className="w-px h-3 bg-gray-300 dark:bg-white/10"></div>
            <span>{selectedLanguage.name} · {selectedInterpreter.name}</span>
