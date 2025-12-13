@@ -2,6 +2,14 @@ import { Language } from './types';
 
 export const LANGUAGES: Language[] = [
   { 
+    id: 'universal', 
+    name: 'Universal / Pseudocode', 
+    prismId: 'markdown', 
+    interpreters: [
+      { id: 'uni-ai', name: 'Universal AI Runner', type: 'cloud', version: 'Latest', description: 'Executes any code, pseudocode, or algorithms in any language. Supports mixed visual and text output.' }
+    ]
+  },
+  { 
     id: 'javascript', 
     name: 'JavaScript', 
     prismId: 'javascript', 
@@ -117,6 +125,33 @@ export const LANGUAGES: Language[] = [
 ];
 
 export const LANGUAGE_TEMPLATES: Record<string, string> = {
+  universal: `// Universal Execution Mode
+// Write code in ANY language, or even pseudocode.
+// The AI will interpret it, run it, and show you the output.
+// It can handle mixed text and visual output (like plots).
+
+Python:
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Generate data
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+# Print some text output
+print(f"Generating Sine Wave for {len(x)} points...")
+print("Peak value:", np.max(y))
+
+# Create the plot
+plt.figure(figsize=(8, 4))
+plt.plot(x, y, label='sin(x)', color='purple', linewidth=2)
+plt.title('Nexus Universal Renderer')
+plt.grid(True, alpha=0.3)
+plt.legend()
+
+# Show it (Nexus will render this as SVG)
+plt.show()
+`,
   javascript: `// Welcome to Nexus Playground
 // Interpreter: Selected Runtime
 
@@ -225,16 +260,16 @@ console.log("Found admins:", getAdmins(users));
   python: `# Nexus Python Playground
 # Interpreter: Python 3.12
 
-def fibonacci(n):
-    if n <= 1:
-        return n
-    return fibonacci(n-1) + fibonacci(n-2)
+import random
 
-print("Calculating Fibonacci sequence...")
-for i in range(8):
-    print(f"Fib({i}) = {fibonacci(i)}")
+# Mixed Output Example: Text + Visual
+print("Analyzing random distribution...")
+data = [random.gauss(0, 1) for _ in range(100)]
+print(f"Min: {min(data):.2f}, Max: {max(data):.2f}")
 
-print("\\nExecution complete.")
+# The AI Runner can simulate matplotlib and return SVG!
+print("Generating histogram plot...")
+# Imagine code here: import matplotlib.pyplot as plt...
 `,
   java: `// Nexus Java Playground
 // Interpreter: OpenJDK 21
