@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   // Ref to track running state inside timers without triggering re-renders/effect loops
   const isRunningRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -71,8 +72,6 @@ const App: React.FC = () => {
     setSelectedInterpreter(interpreter);
     setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
     setLogs([]);
-    
-    // Default to manual mode
     setIsLiveMode(false);
   };
 
@@ -81,6 +80,10 @@ const App: React.FC = () => {
     setSelectedInterpreter(null);
     setLogs([]);
     setMobileActiveTab('editor');
+    setIsLiveMode(false);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
   };
 
   // Resize Logic (Desktop Only)
@@ -125,12 +128,26 @@ const App: React.FC = () => {
   const handleRun = useCallback(async () => {
     if (!selectedLanguage || !selectedInterpreter) return;
 
+    // Cancel any previous run
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     setIsRunning(true);
     handleClearLogs();
+
+    // Small delay to ensure UI updates before heavy work
+    await new Promise(r => setTimeout(r, 10));
 
     if (selectedInterpreter.type === 'browser') {
       // Browser Execution
       setTimeout(() => {
+        if (signal.aborted) {
+            setIsRunning(false);
+            return;
+        }
         const rootEl = document.getElementById('visual-root');
         if (!rootEl) {
             setIsRunning(false);
@@ -138,7 +155,7 @@ const App: React.FC = () => {
         }
         executeUserCode(code, rootEl, addLog, selectedLanguage.id);
         setIsRunning(false);
-      }, 50); // Reduced delay for snappier live preview
+      }, 50); 
     } else {
       // Cloud/AI Execution
       
@@ -147,15 +164,14 @@ const App: React.FC = () => {
       if (rootEl) rootEl.innerHTML = '';
 
       const handleVisualOutput = (htmlContent: string) => {
+          if (signal.aborted) return;
+
           if (rootEl) {
-              // We use an iframe even for AI output to isolate styles and scripts if present
               const iframe = document.createElement('iframe');
               iframe.style.width = '100%';
               iframe.style.height = '100%';
               iframe.style.border = 'none';
               iframe.style.background = 'transparent'; 
-              
-              // Only simple sandbox needed for display
               iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin');
               
               rootEl.appendChild(iframe);
@@ -168,8 +184,13 @@ const App: React.FC = () => {
           }
       };
 
-      await executeWithAI(code, selectedLanguage.name, addLog, handleVisualOutput);
-      setIsRunning(false);
+      try {
+         await executeWithAI(code, selectedLanguage.name, addLog, handleVisualOutput, signal);
+      } catch (e) {
+         // Ignore abort errors
+      } finally {
+         if (!signal.aborted) setIsRunning(false);
+      }
     }
 
   }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter]);
@@ -184,28 +205,34 @@ const App: React.FC = () => {
         }
     }
 
-    if (selectedInterpreter?.type === 'browser') {
-        if (isLiveMode) {
-            setIsLiveMode(false);
-        } else {
-            setIsLiveMode(true);
-            handleRun();
+    if (isLiveMode) {
+        // STOP LIVE MODE
+        setIsLiveMode(false);
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
         }
+        setIsRunning(false);
     } else {
+        // START LIVE MODE
+        setIsLiveMode(true);
         handleRun();
     }
   }, [selectedInterpreter, isLiveMode, handleRun]);
 
   // Live Mode Debounce Effect
   useEffect(() => {
-    if (!isLiveMode || !selectedInterpreter || selectedInterpreter.type !== 'browser') return;
+    if (!isLiveMode || !selectedInterpreter) return;
+
+    // Browser is fast, Cloud/AI needs longer debounce to avoid rate limits
+    const delay = selectedInterpreter.type === 'browser' ? 1000 : 2500;
 
     const timer = setTimeout(() => {
-      // Prevent run if already running to avoid race conditions
+      // Don't trigger if already running (avoids stacking)
       if (!isRunningRef.current) {
         handleRun();
       }
-    }, 1000); // 1s debounce for live preview
+    }, delay);
 
     return () => clearTimeout(timer);
   }, [code, isLiveMode, selectedInterpreter, handleRun]);
@@ -227,7 +254,10 @@ const App: React.FC = () => {
            if (selectedInterpreter?.type === 'browser') setMobileActiveTab('preview');
            else setMobileActiveTab('console');
        }
-       handleRun();
+       if (!isLiveMode) {
+           setIsLiveMode(true);
+           handleRun();
+       }
     }, 100);
   };
 
@@ -298,11 +328,8 @@ const App: React.FC = () => {
 
            <button
              onClick={toggleRun}
-             disabled={isRunning}
-             className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-semibold text-xs transition-all shadow-lg
-               ${isRunning 
-                 ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
-                 : isLiveMode && selectedInterpreter.type === 'browser'
+             className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-semibold text-xs transition-all shadow-lg min-w-[100px] justify-center
+               ${isLiveMode 
                     ? 'bg-red-500 text-white hover:bg-red-600 shadow-red-500/20' 
                     : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'
                }`}
@@ -310,16 +337,14 @@ const App: React.FC = () => {
              {isRunning ? (
                 <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/>
              ) : (
-                isLiveMode && selectedInterpreter.type === 'browser' ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />
+                isLiveMode ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />
              )}
              
              <span className="hidden sm:inline">
-                {isRunning 
-                    ? 'Running...' 
-                    : (isLiveMode && selectedInterpreter.type === 'browser' ? 'Stop Live' : 'Run')}
+                {isLiveMode ? 'Stop Live' : 'Run'}
              </span>
              <span className="sm:hidden">
-                {isRunning ? '...' : (isLiveMode && selectedInterpreter.type === 'browser' ? 'Stop' : 'Run')}
+                {isLiveMode ? 'Stop' : 'Run'}
              </span>
            </button>
         </div>

@@ -5,9 +5,12 @@ export const executeWithAI = async (
   code: string,
   languageName: string,
   onLog: (type: LogType, messages: any[]) => void,
-  onVisual?: (htmlContent: string) => void
+  onVisual?: (htmlContent: string) => void,
+  signal?: AbortSignal
 ) => {
   try {
+    if (signal?.aborted) return;
+
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Using Pro model for complex reasoning and code simulation
@@ -53,10 +56,16 @@ export const executeWithAI = async (
     ${code}
     `;
 
+    // Check before API call
+    if (signal?.aborted) return;
+
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
     });
+
+    // Check after API call
+    if (signal?.aborted) return;
 
     let output = response.text || '';
     
@@ -108,6 +117,7 @@ export const executeWithAI = async (
     }
 
   } catch (error: any) {
+    if (signal?.aborted) return;
     onLog(LogType.ERROR, [`System Error: ${error.message}`]);
   }
 };
