@@ -99,6 +99,10 @@ export const executeUserCode = (
         };
       })();
     </script>
+    <style>
+      @media (prefers-color-scheme: dark) { body { color: #e2e8f0; } }
+      @media (prefers-color-scheme: light) { body { color: #1f2937; } }
+    </style>
   `;
 
   let htmlContent = '';

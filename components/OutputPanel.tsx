@@ -199,7 +199,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   }, [logs, effectiveLayout]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-[#030712] relative transition-colors overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-950 relative transition-colors overflow-hidden">
       
       {/* Header Controls (Desktop Only) */}
       {!mobileView && (
@@ -277,7 +277,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         {/* Console Layer */}
         <div 
            className={`
-             relative bg-gray-50 dark:bg-[#030712] flex flex-col transition-all duration-300 ease-in-out origin-bottom
+             relative bg-gray-50 dark:bg-gray-950 flex flex-col transition-all duration-300 ease-in-out origin-bottom
              ${effectiveLayout === 'visual' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0 pointer-events-none border-none' : ''}
              ${effectiveLayout === 'split' ? 'flex-[0.4] min-h-[20%] border-t border-gray-200 dark:border-white/5' : ''}
              ${effectiveLayout === 'console' ? 'flex-1' : ''}

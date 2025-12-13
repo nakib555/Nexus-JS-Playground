@@ -378,7 +378,7 @@ const App: React.FC = () => {
           </div>
           
           <div 
-             className={`absolute inset-0 z-10 bg-gray-50 dark:bg-[#030712] transition-opacity duration-200 flex flex-col ${
+             className={`absolute inset-0 z-10 transition-opacity duration-200 flex flex-col ${
                mobileActiveTab !== 'editor' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
              }`}
           >
