@@ -297,7 +297,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col w-full h-full text-gray-900 dark:text-white font-sans overflow-hidden selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white bg-white dark:bg-black">
+    <div className="flex flex-col w-full h-[100dvh] text-gray-900 dark:text-white font-sans overflow-hidden selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white bg-white dark:bg-black">
       <AIAssistant 
         isOpen={isAIModalOpen} 
         onClose={() => setIsAIModalOpen(false)} 
@@ -370,7 +370,7 @@ const App: React.FC = () => {
       </header>
 
       {/* --- Main Workspace --- */}
-      <main className="flex-1 relative flex overflow-hidden" ref={containerRef}>
+      <main className="flex-1 relative flex overflow-hidden min-h-0" ref={containerRef}>
         
         {/* Mobile View Manager - Persistent DOM using visibility toggling to prevent iframe loss */}
         <div className="md:hidden w-full h-full relative flex flex-col min-h-0">
@@ -438,7 +438,7 @@ const App: React.FC = () => {
       </main>
 
       {/* --- Mobile Bottom Navigation --- */}
-      <nav className="md:hidden h-16 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center shrink-0 pb-safe z-50">
+      <nav className="md:hidden h-16 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center shrink-0 z-50 pb-[env(safe-area-inset-bottom)]">
          <button 
            onClick={() => setMobileActiveTab('editor')}
            className={`flex flex-col items-center justify-center gap-1 h-full ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}
