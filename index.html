@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexus JS Playground</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Polyfill process for browser environment to prevent crashes in libraries
+      if (typeof window.process === 'undefined') {
+        window.process = { env: { NODE_ENV: 'development' } };
+      } else if (!window.process.env) {
+        window.process.env = { NODE_ENV: 'development' };
+      }
+
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              gray: {
+                850: '#1f2937',
+                900: '#111827',
+                950: '#030712', // Ultra dark
+              },
+              nexus: {
+                dark: '#050505',
+                panel: '#0a0a0a',
+                border: '#1f1f1f',
+              }
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'shimmer': 'shimmer 2s linear infinite',
+            },
+            keyframes: {
+              shimmer: {
+                '0%': { backgroundPosition: '-200% 0' },
+                '100%': { backgroundPosition: '200% 0' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      :root {
+        --syntax-bg: #050505;
+        --syntax-text: #e5e7eb;
+        --syntax-comment: #6b7280;
+        --syntax-string: #a5d6ff;
+        --syntax-keyword: #ff7b72;
+        --syntax-number: #79c0ff;
+        --syntax-function: #d2a8ff;
+        --syntax-operator: #79c0ff;
+        --syntax-builtin: #f0883e;
+        --syntax-punctuation: #8b949e;
+      }
+
+      body {
+        background-color: #030712;
+        background-image: 
+          radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.03) 0%, transparent 50%),
+          radial-gradient(circle at 0% 50%, rgba(99, 102, 241, 0.03) 0%, transparent 50%);
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #374151; 
+        border-radius: 5px;
+        border: 2px solid #030712; /* Creates padding effect */
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #4b5563; 
+      }
+      ::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+      
+      /* Visual Root Sandbox Styles */
+      #visual-root {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        position: relative;
+        background-image: 
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 20px 20px;
+      }
+
+      /* Syntax Highlighting Classes */
+      .token-comment { color: var(--syntax-comment); font-style: italic; }
+      .token-string { color: var(--syntax-string); }
+      .token-keyword { color: var(--syntax-keyword); }
+      .token-number { color: var(--syntax-number); }
+      .token-function { color: var(--syntax-function); }
+      .token-builtin { color: var(--syntax-builtin); }
+      .token-operator { color: var(--syntax-operator); }
+      .token-punctuation { color: var(--syntax-punctuation); }
+
+      /* Loading Animation */
+      #loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+      }
+      .loader {
+        position: relative;
+        width: 60px;
+        height: 60px;
+      }
+      .loader:before, .loader:after {
+        content: '';
+        border-radius: 50%;
+        position: absolute;
+        inset: 0;
+        box-shadow: 0 0 10px 2px rgba(0, 0, 0, 0.3) inset;
+      }
+      .loader:after {
+        box-shadow: 0 2px 0 #4f46e5 inset;
+        animation: rotate 2s linear infinite;
+      }
+      @keyframes rotate {
+        0% { transform: rotate(0deg)}
+        100% { transform: rotate(360deg)}
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudio/react@18.2.0",
+    "react-dom/client": "https://aistudio/react-dom@18.2.0/client",
+    "lucide-react": "https://aistudio/lucide-react@0.294.0?deps=react@18.2.0",
+    "@google/genai": "https://aistudio/@google/genai",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
+</head>
+  <body class="bg-[#030712] text-slate-200 overflow-hidden">
+    <!-- Initial Loading State -->
+    <div id="loading-overlay">
+      <span class="loader"></span>
+      <p class="mt-6 text-gray-500 font-mono text-[10px] tracking-[0.3em] uppercase opacity-60">Initializing Nexus</p>
+    </div>
+    
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+    <script>
+      // Robust loader removal
+      window.addEventListener('load', () => {
+        const removeLoader = () => {
+          const loader = document.getElementById('loading-overlay');
+          if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.remove(), 500);
+          }
+        };
+
+        // Try to wait for React, but force remove if it takes too long to show errors
+        const checkReact = setInterval(() => {
+           if (document.getElementById('root') && document.getElementById('root').childElementCount > 0) {
+             clearInterval(checkReact);
+             removeLoader();
+           }
+        }, 100);
+
+        // Fallback: Remove after 2.5s regardless of React state so we see ErrorBoundary if crashed
+        setTimeout(() => {
+          clearInterval(checkReact);
+          removeLoader();
+        }, 2500);
+      });
+      
+      // Safety net for global errors during load
+      window.addEventListener('error', () => {
+        setTimeout(() => {
+          const loader = document.getElementById('loading-overlay');
+          if (loader) loader.style.display = 'none';
+        }, 100);
+      });
+    </script>
+  </body>
+</html>

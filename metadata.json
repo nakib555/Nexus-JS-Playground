@@ -1,0 +1,9 @@
+{
+  "name": "Nexus JS Playground",
+  "description": "A high-performance JavaScript runtime environment for executing pure JS/TS code with dual visual and console output capabilities.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
