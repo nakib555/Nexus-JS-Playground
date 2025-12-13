@@ -198,15 +198,6 @@ const App: React.FC = () => {
   }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, isLiveMode]);
 
   const toggleRun = useCallback(() => {
-    // Explicit User Action - Switch Tabs on Mobile
-    if (window.innerWidth < 768) {
-        if (selectedInterpreter?.type === 'browser') {
-           setMobileActiveTab('preview');
-        } else {
-           setMobileActiveTab('console');
-        }
-    }
-
     if (isLiveMode) {
         // STOP LIVE MODE
         setIsLiveMode(false);
@@ -215,8 +206,22 @@ const App: React.FC = () => {
             abortControllerRef.current = null;
         }
         setIsRunning(false);
+        
+        // Switch back to editor when stopping
+        if (window.innerWidth < 768) {
+          setMobileActiveTab('editor');
+        }
     } else {
         // START LIVE MODE
+        // Switch Tabs on Mobile to appropriate view
+        if (window.innerWidth < 768) {
+            if (selectedInterpreter?.type === 'browser') {
+               setMobileActiveTab('preview');
+            } else {
+               setMobileActiveTab('console');
+            }
+        }
+
         setIsLiveMode(true);
         handleRun();
     }
@@ -388,7 +393,7 @@ const App: React.FC = () => {
 
         {/* Desktop Split View */}
         <div className="hidden md:flex w-full h-full">
-           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group">
+           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10">
               <CodeEditor 
                 code={code} 
                 onChange={setCode} 
@@ -407,7 +412,7 @@ const App: React.FC = () => {
               <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
            </div>
 
-           <div className="flex-1 h-full min-w-0 bg-gray-50 dark:bg-[#030304]">
+           <div className="flex-1 h-full min-w-0">
               <OutputPanel 
                 logs={logs} 
                 onClearLogs={handleClearLogs}
