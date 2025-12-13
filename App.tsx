@@ -81,8 +81,10 @@ const App: React.FC = () => {
     setLogs([]);
     setMobileActiveTab('editor');
     setIsLiveMode(false);
+    setIsRunning(false); // Explicitly stop running state
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
   };
 
@@ -177,8 +179,8 @@ const App: React.FC = () => {
               rootEl.appendChild(iframe);
               iframe.srcdoc = htmlContent;
 
-              // If mobile, switch to preview tab automatically
-              if (window.innerWidth < 768) {
+              // If mobile, switch to preview tab automatically only if explicit run
+              if (window.innerWidth < 768 && !isLiveMode) {
                   setMobileActiveTab('preview');
               }
           }
@@ -193,7 +195,7 @@ const App: React.FC = () => {
       }
     }
 
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter]);
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, isLiveMode]);
 
   const toggleRun = useCallback(() => {
     // Explicit User Action - Switch Tabs on Mobile
@@ -225,7 +227,7 @@ const App: React.FC = () => {
     if (!isLiveMode || !selectedInterpreter) return;
 
     // Browser is fast, Cloud/AI needs longer debounce to avoid rate limits
-    const delay = selectedInterpreter.type === 'browser' ? 1000 : 2500;
+    const delay = selectedInterpreter.type === 'browser' ? 800 : 2500;
 
     const timer = setTimeout(() => {
       // Don't trigger if already running (avoids stacking)
@@ -353,29 +355,35 @@ const App: React.FC = () => {
       {/* --- Main Workspace --- */}
       <main className="flex-1 relative flex overflow-hidden" ref={containerRef}>
         
-        {/* Mobile View Manager */}
-        <div className="md:hidden w-full h-full flex flex-col min-h-0">
-          {mobileActiveTab === 'editor' && (
-             <div className="flex-1 relative min-h-0">
-                <CodeEditor 
-                    code={code} 
-                    onChange={setCode} 
-                    language={selectedLanguage}
-                    onRun={toggleRun}
-                    onAI={() => setIsAIModalOpen(true)}
-                    onChangeSettings={handleBackToSelection}
-                />
-             </div>
-          )}
-          {(mobileActiveTab === 'preview' || mobileActiveTab === 'console') && (
-             <div className="flex-1 relative min-h-0">
-                <OutputPanel 
-                  logs={logs} 
-                  onClearLogs={handleClearLogs}
-                  mobileView={mobileActiveTab === 'preview' ? 'preview' : 'console'}
-                />
-             </div>
-          )}
+        {/* Mobile View Manager - Persistent DOM using visibility toggling to prevent iframe loss */}
+        <div className="md:hidden w-full h-full relative flex flex-col min-h-0">
+          <div 
+             className={`absolute inset-0 z-10 bg-white dark:bg-black transition-opacity duration-200 flex flex-col ${
+               mobileActiveTab === 'editor' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+             }`}
+          >
+             <CodeEditor 
+                code={code} 
+                onChange={setCode} 
+                language={selectedLanguage}
+                onRun={toggleRun}
+                onAI={() => setIsAIModalOpen(true)}
+                onChangeSettings={handleBackToSelection}
+             />
+          </div>
+          
+          <div 
+             className={`absolute inset-0 z-10 bg-gray-50 dark:bg-[#030712] transition-opacity duration-200 flex flex-col ${
+               mobileActiveTab !== 'editor' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+             }`}
+          >
+             <OutputPanel 
+               logs={logs} 
+               onClearLogs={handleClearLogs}
+               // If in editor, keep the previous output state (or default to preview) rather than unmounting
+               mobileView={mobileActiveTab === 'console' ? 'console' : 'preview'}
+             />
+          </div>
         </div>
 
         {/* Desktop Split View */}
