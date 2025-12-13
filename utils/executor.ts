@@ -47,15 +47,23 @@ export const executeUserCode = (
              const processedArgs = args.map(arg => {
                 if (arg instanceof Error) return arg.toString();
                 if (typeof arg === 'function') return arg.toString();
+                if (arg instanceof Promise) return '[object Promise]';
+                if (arg instanceof Date) return arg.toISOString();
+                if (arg instanceof RegExp) return arg.toString();
+                if (arg instanceof Set) return Array.from(arg);
+                if (arg instanceof Map) return Object.fromEntries(arg);
+                
                 if (arg instanceof Element) {
-                    return arg.outerHTML.substring(0, 50) + '...';
+                    // Serialize simplified element structure
+                    return arg.outerHTML.substring(0, 150) + (arg.outerHTML.length > 150 ? '...' : '');
                 }
+                
                 // JSON serialization check to ensure it's cloneable
                 try {
                   JSON.stringify(arg);
                   return arg;
                 } catch (e) {
-                  return String(arg);
+                  return String(arg); // Fallback for circular references or other non-serializables
                 }
              });
              
