@@ -40,7 +40,7 @@ Constraints & Environment:
 7. You can use modern ES6+ syntax.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-pro-preview',
         contents: `Generate code for: "${prompt}"`,
         config: { systemInstruction },
       });
@@ -81,7 +81,7 @@ Constraints & Environment:
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">AI Architect</h2>
-              <p className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Gemini 2.5 Flash</p>
+              <p className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Gemini 3.0 Pro</p>
             </div>
           </div>
           <button 

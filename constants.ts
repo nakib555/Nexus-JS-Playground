@@ -125,31 +125,28 @@ export const LANGUAGES: Language[] = [
 ];
 
 export const LANGUAGE_TEMPLATES: Record<string, string> = {
-  universal: `// Universal Execution Mode
-// Write code in ANY language, or even pseudocode.
-// The AI will interpret it, run it, and show you the output.
-// It can handle mixed text and visual output (like plots).
+  universal: `# Nexus Universal AI Runner
+# Runs any language (Python, JS, Go, Rust, etc.) without setup.
+# Simulates output for libraries like Matplotlib, NumPy, etc.
 
-Python:
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 
-# Generate data
-x = np.linspace(0, 10, 100)
-y = np.sin(x)
+# 1. Text Output -> Console
+print("Simulating Complex Calculation...")
+x = np.linspace(0, 20, 200)
+y = np.sin(x) * np.cos(x/2)
+print(f"Generated {len(x)} points.")
+print(f"Peak Amplitude: {np.max(y):.3f}")
 
-# Print some text output
-print(f"Generating Sine Wave for {len(x)} points...")
-print("Peak value:", np.max(y))
-
-# Create the plot
-plt.figure(figsize=(8, 4))
-plt.plot(x, y, label='sin(x)', color='purple', linewidth=2)
-plt.title('Nexus Universal Renderer')
+# 2. Visual Output -> Preview
+# The AI will render this plot as an SVG automatically!
+plt.figure(figsize=(10, 5))
+plt.plot(x, y, color='#8b5cf6', linewidth=2, label='Wave Function')
+plt.title('Mixed Output Demo')
 plt.grid(True, alpha=0.3)
+plt.fill_between(x, y, alpha=0.2, color='#8b5cf6')
 plt.legend()
-
-# Show it (Nexus will render this as SVG)
 plt.show()
 `,
   javascript: `// Welcome to Nexus Playground

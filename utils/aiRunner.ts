@@ -10,8 +10,8 @@ export const executeWithAI = async (
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    // Using flash for speed
-    const model = 'gemini-2.5-flash';
+    // Using Pro model for complex reasoning and code simulation
+    const model = 'gemini-3-pro-preview';
     
     onLog(LogType.INFO, [`[${languageName}] Initializing remote execution environment...`]);
 
@@ -24,23 +24,23 @@ export const executeWithAI = async (
     2. Simulate the execution of the code provided below with 100% accuracy.
     3. Return the standard output (stdout) of the code.
     
-    HANDLING VISUALS & LIBRARIES:
-    - You must simulate standard libraries and common external libraries (e.g., NumPy, Pandas, Matplotlib, Three.js, React) if used.
-    - If the code generates a plot, chart, diagram, image, or UI (e.g., Python Matplotlib plot, JS Canvas, ASCII art), you MUST generate the raw HTML/SVG representation of it.
-    - If the code output is purely visual (e.g. an HTML file), output the HTML.
+    CAPABILITIES:
+    - You handle ANY language (Python, Javascript, C++, Java, Go, Rust, Pseudocode, etc.).
+    - You simulate standard libraries.
+    - IMPORTANT: If the user code attempts to use popular external libraries (like matplotlib, numpy, pandas, three.js, react, etc.) you MUST simulate their behavior and output as if they were installed and working perfectly.
     
-    MIXED OUTPUT FORMAT:
-    - If the code produces BOTH text stdout AND a visual artifact:
-      1. Output the text stdout first.
-      2. Output this exact delimiter line: "@@@NEXUS_VISUAL_BREAK@@@"
-      3. Output the HTML/SVG code.
-    - If only text: Output text.
-    - If only visual: Output visual HTML/SVG.
-
+    OUTPUT FORMATTING:
+    - Text Output: Return the raw text stdout.
+    - Visual Output: If the code creates a plot, image, UI, diagram, or GUI, return the raw HTML/SVG representation of that output.
+    - Mixed Output: If code produces BOTH text and visual:
+      1. Text Output
+      2. "@@@NEXUS_VISUAL_BREAK@@@"
+      3. Visual Output (HTML/SVG)
+    
     ERROR HANDLING:
     - If there is a syntax or runtime error, return the error message exactly as the interpreter would.
 
-    FORMATTING RULES:
+    RULES:
     - Do NOT wrap output in markdown code blocks (no \`\`\` wrappers).
     - Do NOT add conversational filler ("Here is the output...").
     - Just the raw execution result.
@@ -70,8 +70,6 @@ export const executeWithAI = async (
           
           if (visualPart.trim() && onVisual) {
             onVisual(visualPart.trim());
-            // Optional: Log a subtle message indicating visual was updated
-            // onLog(LogType.INFO, ['Visual output updated.']);
           }
           return;
       }
@@ -88,7 +86,6 @@ export const executeWithAI = async (
       if (isVisual) {
          if (onVisual) {
             onVisual(output);
-            onLog(LogType.SUCCESS, ['Visual output generated.']);
          } else {
              onLog(LogType.SUCCESS, ['(Visual Output Detected)']);
              onLog(LogType.INFO, [output]);
