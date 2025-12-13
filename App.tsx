@@ -412,7 +412,7 @@ const App: React.FC = () => {
               <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
            </div>
 
-           <div className="flex-1 h-full min-w-0">
+           <div className="flex-1 min-w-0 bg-gray-50 dark:bg-[#030304]">
               <OutputPanel 
                 logs={logs} 
                 onClearLogs={handleClearLogs}
