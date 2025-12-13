@@ -25,9 +25,13 @@ export const executeWithAI = async (
     3. Return the standard output (stdout) of the code.
     
     CAPABILITIES:
-    - You handle ANY language (Python, Javascript, C++, Java, Go, Rust, Pseudocode, etc.).
+    - You handle ANY language (Python, Javascript, C++, Java, Go, Rust, Pseudocode, Bash, SQL, etc.).
     - You simulate standard libraries.
     - IMPORTANT: If the user code attempts to use popular external libraries (like matplotlib, numpy, pandas, three.js, react, etc.) you MUST simulate their behavior and output as if they were installed and working perfectly.
+    - If the output is purely text, return text.
+    - If the output is visual (plot, UI, image, dashboard), return HTML/SVG.
+    - If the output is structured data (tables, lists), format it nicely as text or HTML.
+    - If the output is mixed, separate them clearly.
     
     OUTPUT FORMATTING:
     - Text Output: Return the raw text stdout.
