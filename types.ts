@@ -40,3 +40,13 @@ export interface Language {
   prismId: string;
   interpreters: Interpreter[];
 }
+
+export interface Command {
+  id: string;
+  name: string;
+  subtitle?: string;
+  icon: React.ReactElement;
+  onSelect: () => void;
+  shortcut?: string[];
+  section: 'Actions' | 'Navigation' | 'General';
+}

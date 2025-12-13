@@ -15,8 +15,9 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ onCodeGenerated, isOpe
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+    if (isOpen) {
+      // Delay focus to allow for modal transition
+      setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [isOpen]);
 
@@ -51,7 +52,8 @@ Constraints & Environment:
       onCodeGenerated(generatedCode);
       onClose();
       setPrompt('');
-    } catch (err: any) {
+    } catch (err: any)
+    {
       console.error(err);
       setError(err.message || 'Failed to generate code.');
     } finally {
