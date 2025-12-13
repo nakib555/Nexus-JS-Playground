@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, GripVertical, Settings2, Command, Sun, Moon, ArrowLeft } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, GripVertical, Settings2, Command, Sun, Moon, ArrowLeft, Zap, ZapOff } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
@@ -36,10 +36,19 @@ const App: React.FC = () => {
   const [mobileActiveTab, setMobileActiveTab] = useState<MobileTab>('editor');
   
   const [isRunning, setIsRunning] = useState(false);
+  // Ref to track running state inside timers without triggering re-renders/effect loops
+  const isRunningRef = useRef(false);
+
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sync ref
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
 
   // Theme Management
   useEffect(() => {
@@ -62,6 +71,10 @@ const App: React.FC = () => {
     setSelectedInterpreter(interpreter);
     setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
     setLogs([]);
+    
+    // Auto-enable live mode for browser-based interpreters
+    // Disable for cloud/AI to prevent API quota usage and latency
+    setIsLiveMode(interpreter.type === 'browser');
   };
 
   const handleBackToSelection = () => {
@@ -137,7 +150,7 @@ const App: React.FC = () => {
         }
         executeUserCode(code, rootEl, addLog, selectedLanguage.id);
         setIsRunning(false);
-      }, 150);
+      }, 50); // Reduced delay for snappier live preview
     } else {
       // Cloud/AI Execution
       
@@ -172,6 +185,20 @@ const App: React.FC = () => {
     }
 
   }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter]);
+
+  // Live Mode Debounce Effect
+  useEffect(() => {
+    if (!isLiveMode || !selectedInterpreter || selectedInterpreter.type !== 'browser') return;
+
+    const timer = setTimeout(() => {
+      // Prevent run if already running to avoid race conditions
+      if (!isRunningRef.current) {
+        handleRun();
+      }
+    }, 1000); // 1s debounce for live preview
+
+    return () => clearTimeout(timer);
+  }, [code, isLiveMode, selectedInterpreter, handleRun]);
 
   const handleReset = () => {
     if (selectedLanguage && window.confirm("Reset code to default example?")) {
@@ -246,6 +273,22 @@ const App: React.FC = () => {
            </button>
 
            <div className="hidden md:flex items-center gap-2 mr-2">
+              {/* Toggle Live Mode (Only for Browser Interpreters) */}
+              {selectedInterpreter.type === 'browser' && (
+                <button
+                  onClick={() => setIsLiveMode(!isLiveMode)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold text-xs transition-all border ${
+                    isLiveMode 
+                      ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' 
+                      : 'bg-transparent text-gray-500 border-transparent hover:bg-gray-100 dark:hover:bg-white/5'
+                  }`}
+                  title={isLiveMode ? "Disable Live Preview" : "Enable Live Preview"}
+                >
+                  {isLiveMode ? <Zap className="w-3.5 h-3.5 fill-current" /> : <ZapOff className="w-3.5 h-3.5" />}
+                  <span>{isLiveMode ? 'Live' : 'Manual'}</span>
+                </button>
+              )}
+
               <button onClick={() => setIsAIModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-white/5 hover:bg-indigo-100 dark:hover:bg-white/10 border border-indigo-200 dark:border-white/5 text-xs font-medium text-indigo-600 dark:text-indigo-300 transition-all hover:border-indigo-300 dark:hover:border-indigo-500/30">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>AI Assist</span>
@@ -372,7 +415,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-3">
            <div className="flex items-center gap-1.5">
               <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-              <span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Running...' : 'Ready'}</span>
+              <span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Running...' : (isLiveMode ? 'Live Preview Active' : 'Ready')}</span>
            </div>
            <div className="w-px h-3 bg-gray-300 dark:bg-white/10"></div>
            <span>{selectedLanguage.name} · {selectedInterpreter.name}</span>
