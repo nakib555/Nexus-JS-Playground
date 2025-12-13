@@ -7,6 +7,7 @@ interface OutputPanelProps {
   onClearLogs: () => void;
   // If provided, forces a specific view (used for mobile)
   mobileView?: 'console' | 'preview';
+  visualRootId?: string;
 }
 
 // -- Object Inspector Components --
@@ -140,7 +141,8 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
 export const OutputPanel: React.FC<OutputPanelProps> = ({ 
   logs, 
   onClearLogs,
-  mobileView
+  mobileView,
+  visualRootId = 'visual-root'
 }) => {
   const endRef = useRef<HTMLDivElement>(null);
   
@@ -153,7 +155,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   useEffect(() => {
     // The Visual Root is where we mount the iframe. 
     // We check if it has an iframe with content.
-    const root = document.getElementById('visual-root');
+    const root = document.getElementById(visualRootId);
     if (!root) return;
 
     const checkContent = () => {
@@ -165,7 +167,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     observer.observe(root, { childList: true, subtree: true });
     checkContent();
     return () => observer.disconnect();
-  }, []);
+  }, [visualRootId]);
 
   // Determine Effective Layout based on Mode + Content
   useEffect(() => {
@@ -264,7 +266,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
            `}
         >
           <div className="w-full h-full relative">
-             <div id="visual-root" className="w-full h-full visual-grid-bg"></div>
+             <div id={visualRootId} className="w-full h-full visual-grid-bg"></div>
              <div className="absolute top-2 right-2 pointer-events-none opacity-50 z-10">
                <span className="text-[9px] font-mono text-gray-400 bg-white/50 dark:bg-black/50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 backdrop-blur">Preview</span>
              </div>

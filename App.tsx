@@ -126,6 +126,12 @@ const App: React.FC = () => {
 
   const handleClearLogs = useCallback(() => setLogs([]), []);
 
+  const getVisualRoot = useCallback(() => {
+    // Determine which root is currently valid based on viewport
+    const isMobile = window.innerWidth < 768;
+    return document.getElementById(isMobile ? 'visual-root-mobile' : 'visual-root-desktop');
+  }, []);
+
   // Execution Logic
   const handleRun = useCallback(async () => {
     if (!selectedLanguage || !selectedInterpreter) return;
@@ -150,8 +156,9 @@ const App: React.FC = () => {
             setIsRunning(false);
             return;
         }
-        const rootEl = document.getElementById('visual-root');
+        const rootEl = getVisualRoot();
         if (!rootEl) {
+            addLog(LogType.ERROR, ["Visual Root not found. Please verify layout."]);
             setIsRunning(false);
             return;
         }
@@ -162,13 +169,18 @@ const App: React.FC = () => {
       // Cloud/AI Execution
       
       // Clear previous visual output (if any)
-      const rootEl = document.getElementById('visual-root');
+      const rootEl = getVisualRoot();
       if (rootEl) rootEl.innerHTML = '';
 
       const handleVisualOutput = (htmlContent: string) => {
           if (signal.aborted) return;
-
-          if (rootEl) {
+          
+          const currentRoot = getVisualRoot();
+          if (currentRoot) {
+              // Ensure we clear before appending if it's a fresh run output
+              // But here we might be appending partials. For now, replace.
+              currentRoot.innerHTML = '';
+              
               const iframe = document.createElement('iframe');
               iframe.style.width = '100%';
               iframe.style.height = '100%';
@@ -176,10 +188,10 @@ const App: React.FC = () => {
               iframe.style.background = 'transparent'; 
               iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin');
               
-              rootEl.appendChild(iframe);
+              currentRoot.appendChild(iframe);
               iframe.srcdoc = htmlContent;
 
-              // If mobile, switch to preview tab automatically only if explicit run
+              // If mobile, switch to preview tab automatically only if explicit run (not live mode)
               if (window.innerWidth < 768 && !isLiveMode) {
                   setMobileActiveTab('preview');
               }
@@ -195,7 +207,7 @@ const App: React.FC = () => {
       }
     }
 
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, isLiveMode]);
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, isLiveMode, getVisualRoot]);
 
   const toggleRun = useCallback(() => {
     if (isLiveMode) {
@@ -207,7 +219,7 @@ const App: React.FC = () => {
         }
         setIsRunning(false);
         
-        // Switch back to editor when stopping
+        // Switch back to editor when stopping on mobile
         if (window.innerWidth < 768) {
           setMobileActiveTab('editor');
         }
@@ -248,7 +260,7 @@ const App: React.FC = () => {
     if (selectedLanguage && window.confirm("Reset code to default example?")) {
       setCode(LANGUAGE_TEMPLATES[selectedLanguage.id] || '');
       handleClearLogs();
-      const rootEl = document.getElementById('visual-root');
+      const rootEl = getVisualRoot();
       if (rootEl) rootEl.innerHTML = '';
       setMobileActiveTab('editor');
     }
@@ -385,6 +397,8 @@ const App: React.FC = () => {
              <OutputPanel 
                logs={logs} 
                onClearLogs={handleClearLogs}
+               // Pass distinct ID for mobile visual root
+               visualRootId="visual-root-mobile"
                // If in editor, keep the previous output state (or default to preview) rather than unmounting
                mobileView={mobileActiveTab === 'console' ? 'console' : 'preview'}
              />
@@ -416,6 +430,8 @@ const App: React.FC = () => {
               <OutputPanel 
                 logs={logs} 
                 onClearLogs={handleClearLogs}
+                // Pass distinct ID for desktop visual root
+                visualRootId="visual-root-desktop"
               />
            </div>
         </div>

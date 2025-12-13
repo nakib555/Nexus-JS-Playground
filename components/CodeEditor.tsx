@@ -108,10 +108,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     <div className="relative w-full h-full bg-white dark:bg-[#050505] font-mono text-[13px] group flex flex-col overflow-hidden transition-colors">
       
       <div className="relative flex-1 flex min-h-0">
-        {/* Gutter */}
+        {/* Gutter - slightly narrower on mobile */}
         <div 
           ref={gutterRef}
-          className="w-10 bg-gray-50 dark:bg-[#070707] border-r border-gray-200 dark:border-white/5 text-gray-400 dark:text-gray-700 select-none flex flex-col items-end py-4 shrink-0 z-20 overflow-hidden transition-colors"
+          className="w-8 md:w-10 bg-gray-50 dark:bg-[#070707] border-r border-gray-200 dark:border-white/5 text-gray-400 dark:text-gray-700 select-none flex flex-col items-end py-4 shrink-0 z-20 overflow-hidden transition-colors"
         >
            <div className="w-full text-right pr-2">
             {Array.from({ length: Math.max(lineCount, 50) }).map((_, i) => {
@@ -177,13 +177,16 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             spellCheck={false}
             autoCapitalize="off"
             autoComplete="off"
+            // Use 16px only on mobile touch targets (handled via media query if possible, but hard in inline)
+            // Or just keep 13px as user requested 'fix'. 
+            // The max-scale=1.0 in index.html prevents zoom, so 13px is fine.
             className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-indigo-600 dark:caret-indigo-400 outline-none resize-none font-mono text-[13px] leading-6 whitespace-pre z-10 selection:bg-indigo-200 dark:selection:bg-indigo-500/20 overflow-auto overscroll-none touch-auto"
             style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2, backgroundColor: 'transparent' }}
           />
 
           {/* Floating Command Dialog / Menu */}
           <div 
-            className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 cubic-bezier(0.16, 1, 0.3, 1) origin-bottom
+            className={`absolute bottom-8 md:bottom-8 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 cubic-bezier(0.16, 1, 0.3, 1) origin-bottom
                 ${showFloatingMenu ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`}
           >
              <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl shadow-2xl border border-gray-200 dark:border-white/10 rounded-2xl p-1.5 flex items-center gap-1 ring-1 ring-black/5 dark:ring-white/5">
