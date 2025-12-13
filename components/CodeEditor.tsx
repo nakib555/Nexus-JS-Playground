@@ -36,6 +36,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
   const [lineCount, setLineCount] = useState(1);
   const [error, setError] = useState<{ line: number; message: string } | null>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -68,9 +69,13 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [code, language.id]);
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    const { scrollTop, scrollLeft } = e.currentTarget;
     if (preRef.current) {
-      preRef.current.scrollTop = e.currentTarget.scrollTop;
-      preRef.current.scrollLeft = e.currentTarget.scrollLeft;
+      preRef.current.scrollTop = scrollTop;
+      preRef.current.scrollLeft = scrollLeft;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = scrollTop;
     }
   };
 
@@ -104,14 +109,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       
       <div className="relative flex-1 flex min-h-0">
         {/* Gutter */}
-        <div className="w-10 bg-gray-50 dark:bg-[#070707] border-r border-gray-200 dark:border-white/5 text-gray-400 dark:text-gray-700 select-none flex flex-col items-end py-4 shrink-0 z-20 overflow-hidden transition-colors">
-           <div 
-             className="w-full text-right pr-2"
-             style={{ 
-               transform: `translateY(-${textareaRef.current?.scrollTop || 0}px)`,
-               transition: 'transform 0s' 
-             }}
-           >
+        <div 
+          ref={gutterRef}
+          className="w-10 bg-gray-50 dark:bg-[#070707] border-r border-gray-200 dark:border-white/5 text-gray-400 dark:text-gray-700 select-none flex flex-col items-end py-4 shrink-0 z-20 overflow-hidden transition-colors"
+        >
+           <div className="w-full text-right pr-2">
             {Array.from({ length: Math.max(lineCount, 50) }).map((_, i) => {
               const lineNum = i + 1;
               const isError = error?.line === lineNum;
@@ -143,6 +145,17 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2 }}
           >
              <code dangerouslySetInnerHTML={{ __html: highlightedCode + '<br/>' }} className="block min-w-full min-h-full" />
+             
+             {/* Error Line Highlight - Inside pre to scroll with content */}
+             {error && error.line > 0 && (
+                <div 
+                  className="absolute left-0 right-0 bg-red-500/5 border-y border-red-500/10 pointer-events-none"
+                  style={{ 
+                    top: `${16 + (error.line - 1) * 24}px`, 
+                    height: '24px' 
+                  }}
+                />
+             )}
           </pre>
 
           {/* Input Layer */}
@@ -164,7 +177,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             spellCheck={false}
             autoCapitalize="off"
             autoComplete="off"
-            className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-indigo-600 dark:caret-indigo-400 outline-none resize-none font-mono text-[13px] leading-6 whitespace-pre z-10 selection:bg-indigo-200 dark:selection:bg-indigo-500/20"
+            className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-indigo-600 dark:caret-indigo-400 outline-none resize-none font-mono text-[13px] leading-6 whitespace-pre z-10 selection:bg-indigo-200 dark:selection:bg-indigo-500/20 overflow-auto overscroll-none touch-auto"
             style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2 }}
           />
 
@@ -202,17 +215,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                 </button>
              </div>
           </div>
-
-          {/* Error Line Highlight */}
-          {error && error.line > 0 && (
-            <div 
-              className="absolute left-0 right-0 bg-red-500/5 border-y border-red-500/10 pointer-events-none z-0"
-              style={{ 
-                top: `${16 + (error.line - 1) * 24 - (textareaRef.current?.scrollTop || 0)}px`, 
-                height: '24px' 
-              }}
-            />
-          )}
         </div>
       </div>
 

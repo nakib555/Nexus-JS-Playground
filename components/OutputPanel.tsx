@@ -289,7 +289,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                <span className="text-[9px] font-mono text-gray-400 bg-white/50 dark:bg-black/50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 backdrop-blur">Console</span>
            </div>
 
-           <div className="flex-1 overflow-y-auto overflow-x-hidden font-mono text-xs custom-scrollbar">
+           <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-xs custom-scrollbar">
             {logs.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-800 space-y-3 opacity-60">
                 <Terminal className="w-6 h-6" />

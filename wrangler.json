@@ -1,0 +1,10 @@
+{
+  "name": "nexus-js-playground",
+  "assets": {
+    "directory": "./dist"
+  },
+  "compatibility_date": "2024-09-23",
+  "observability": {
+    "enabled": true
+  }
+}

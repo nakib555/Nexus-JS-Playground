@@ -207,7 +207,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-black text-gray-900 dark:text-white font-sans overflow-hidden selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white">
+    <div className="flex flex-col w-full h-full text-gray-900 dark:text-white font-sans overflow-hidden selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white bg-white dark:bg-black">
       <AIAssistant 
         isOpen={isAIModalOpen} 
         onClose={() => setIsAIModalOpen(false)} 
@@ -275,9 +275,9 @@ const App: React.FC = () => {
       <main className="flex-1 relative flex overflow-hidden" ref={containerRef}>
         
         {/* Mobile View Manager */}
-        <div className="md:hidden w-full h-full flex flex-col">
+        <div className="md:hidden w-full h-full flex flex-col min-h-0">
           {mobileActiveTab === 'editor' && (
-             <div className="flex-1 relative">
+             <div className="flex-1 relative min-h-0">
                 <CodeEditor 
                     code={code} 
                     onChange={setCode} 
@@ -289,7 +289,7 @@ const App: React.FC = () => {
              </div>
           )}
           {(mobileActiveTab === 'preview' || mobileActiveTab === 'console') && (
-             <div className="flex-1 relative">
+             <div className="flex-1 relative min-h-0">
                 <OutputPanel 
                   logs={logs} 
                   onClearLogs={handleClearLogs}
