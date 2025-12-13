@@ -178,7 +178,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             autoCapitalize="off"
             autoComplete="off"
             className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-indigo-600 dark:caret-indigo-400 outline-none resize-none font-mono text-[13px] leading-6 whitespace-pre z-10 selection:bg-indigo-200 dark:selection:bg-indigo-500/20 overflow-auto overscroll-none touch-auto"
-            style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2 }}
+            style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2, backgroundColor: 'transparent' }}
           />
 
           {/* Floating Command Dialog / Menu */}

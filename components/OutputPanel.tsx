@@ -199,11 +199,11 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   }, [logs, effectiveLayout]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-[#030712] relative transition-colors">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-[#030712] relative transition-colors overflow-hidden">
       
       {/* Header Controls (Desktop Only) */}
       {!mobileView && (
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-white/50 dark:bg-black/20 px-3 h-9 shrink-0 transition-colors z-20">
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-white/50 dark:bg-black/20 px-3 h-9 shrink-0 transition-colors z-30 backdrop-blur-sm">
           <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 uppercase tracking-wider">
             {layoutMode === 'auto' && <span className="flex items-center gap-1 text-indigo-500"><Layout className="w-3 h-3"/> Auto</span>}
             {layoutMode !== 'auto' && <span className="text-gray-400">Manual</span>}
@@ -257,30 +257,28 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
         {/* Visual Layer */}
         <div 
            className={`
-             relative bg-transparent transition-all duration-300 ease-in-out flex flex-col
-             ${effectiveLayout === 'console' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''}
+             relative bg-transparent transition-all duration-300 ease-in-out flex flex-col origin-top
+             ${effectiveLayout === 'console' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0 pointer-events-none' : ''}
              ${effectiveLayout === 'split' ? 'flex-[0.6] min-h-[30%]' : ''}
              ${effectiveLayout === 'visual' ? 'flex-1' : ''}
            `}
         >
           <div className="w-full h-full relative">
              <div id="visual-root" className="w-full h-full visual-grid-bg"></div>
-             <div className="absolute top-2 right-2 pointer-events-none opacity-50">
+             <div className="absolute top-2 right-2 pointer-events-none opacity-50 z-10">
                <span className="text-[9px] font-mono text-gray-400 bg-white/50 dark:bg-black/50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 backdrop-blur">Preview</span>
              </div>
           </div>
         </div>
 
         {/* Divider (Visual only for split view) */}
-        {effectiveLayout === 'split' && (
-           <div className="h-px bg-gray-200 dark:bg-white/10 w-full shrink-0 shadow-sm z-10"></div>
-        )}
+        <div className={`h-px bg-gray-200 dark:bg-white/10 w-full shrink-0 shadow-sm z-20 transition-opacity duration-300 ${effectiveLayout === 'split' ? 'opacity-100' : 'opacity-0 h-0 border-none pointer-events-none'}`}></div>
 
         {/* Console Layer */}
         <div 
            className={`
-             relative bg-gray-50 dark:bg-[#030712] flex flex-col transition-all duration-300 ease-in-out
-             ${effectiveLayout === 'visual' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''}
+             relative bg-gray-50 dark:bg-[#030712] flex flex-col transition-all duration-300 ease-in-out origin-bottom
+             ${effectiveLayout === 'visual' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0 pointer-events-none border-none' : ''}
              ${effectiveLayout === 'split' ? 'flex-[0.4] min-h-[20%] border-t border-gray-200 dark:border-white/5' : ''}
              ${effectiveLayout === 'console' ? 'flex-1' : ''}
            `}
