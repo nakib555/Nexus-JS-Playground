@@ -23,3 +23,20 @@ export interface ExecutionContext {
   };
   root: HTMLElement | null;
 }
+
+export type ExecutionMode = 'browser' | 'cloud';
+
+export interface Interpreter {
+  id: string;
+  name: string;
+  type: ExecutionMode;
+  version: string;
+  description: string;
+}
+
+export interface Language {
+  id: string;
+  name: string;
+  prismId: string;
+  interpreters: Interpreter[];
+}

@@ -1,25 +1,77 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Code2, Zap, Sparkles, PanelLeftClose, PanelLeft, GripVertical } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, GripVertical, Settings2, Command, Sun, Moon, ArrowLeft } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
-import { INITIAL_CODE } from './constants';
-import { LogEntry, LogType } from './types';
+import { LanguageSelector } from './components/LanguageSelector';
+import { LANGUAGE_TEMPLATES } from './constants';
+import { LogEntry, LogType, Language, Interpreter } from './types';
 import { executeUserCode } from './utils/executor';
+import { executeWithAI } from './utils/aiRunner';
+
+type MobileTab = 'editor' | 'preview' | 'console';
+type Theme = 'dark' | 'light';
 
 const App: React.FC = () => {
-  const [code, setCode] = useState<string>(INITIAL_CODE);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [activeOutputTab, setActiveOutputTab] = useState<'console' | 'visual'>('visual');
-  const [isRunning, setIsRunning] = useState(false);
-  const [hasMounted, setHasMounted] = useState(false);
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(null);
+  const [selectedInterpreter, setSelectedInterpreter] = useState<Interpreter | null>(null);
   
-  // Resizable Logic
-  const [editorWidth, setEditorWidth] = useState(50); // percentage
+  const [code, setCode] = useState<string>('');
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  
+  // Theme State with Persistence
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('nexus-theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+      if (window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+    }
+    return 'dark';
+  });
+  
+  // Desktop Layout State
+  const [editorWidth, setEditorWidth] = useState(55); // percentage
+  
+  // Mobile State
+  const [mobileActiveTab, setMobileActiveTab] = useState<MobileTab>('editor');
+  
+  const [isRunning, setIsRunning] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Theme Management
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('nexus-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  // Handle Language Selection (Now includes Interpreter)
+  const handleLanguageSelect = (lang: Language, interpreter: Interpreter) => {
+    setSelectedLanguage(lang);
+    setSelectedInterpreter(interpreter);
+    setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
+    setLogs([]);
+  };
+
+  const handleBackToSelection = () => {
+    setSelectedLanguage(null);
+    setSelectedInterpreter(null);
+    setLogs([]);
+    setMobileActiveTab('editor');
+  };
+
+  // Resize Logic (Desktop Only)
   const startResize = useCallback(() => setIsDragging(true), []);
   const stopResize = useCallback(() => setIsDragging(false), []);
   
@@ -27,7 +79,7 @@ const App: React.FC = () => {
     if (isDragging && containerRef.current) {
       const containerRect = containerRef.current.getBoundingClientRect();
       const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-      if (newWidth > 20 && newWidth < 80) {
+      if (newWidth > 25 && newWidth < 75) {
         setEditorWidth(newWidth);
       }
     }
@@ -42,6 +94,7 @@ const App: React.FC = () => {
     };
   }, [resize, stopResize]);
 
+  // Logging
   const addLog = useCallback((type: LogType, messages: any[]) => {
     setLogs((prev) => [
       ...prev,
@@ -56,163 +109,279 @@ const App: React.FC = () => {
 
   const handleClearLogs = useCallback(() => setLogs([]), []);
 
-  const handleRun = useCallback(() => {
+  // Execution Logic
+  const handleRun = useCallback(async () => {
+    if (!selectedLanguage || !selectedInterpreter) return;
+
     setIsRunning(true);
     handleClearLogs();
     
-    // Defer execution slightly to ensure UI updates state
-    setTimeout(() => {
-      const rootEl = document.getElementById('visual-root');
-      if (!rootEl) {
-          setIsRunning(false);
-          return;
-      }
-      
-      executeUserCode(code, rootEl, addLog);
-      setIsRunning(false);
-      setActiveOutputTab('visual');
-    }, 150);
-  }, [code, addLog, handleClearLogs]);
-
-  // Initial Run
-  useEffect(() => {
-    if (!hasMounted) {
-      setHasMounted(true);
-      // Small delay to ensure DOM is ready
-      setTimeout(() => {
-        handleRun();
-      }, 500);
+    // Auto switch for mobile
+    if (window.innerWidth < 768) {
+        // If it's a browser run, go to preview, otherwise console.
+        // However, AI might return visual output, so we might switch dynamically later.
+        if (selectedInterpreter.type === 'browser') {
+           setMobileActiveTab('preview');
+        } else {
+           setMobileActiveTab('console');
+        }
     }
-  }, [hasMounted, handleRun]);
+
+    if (selectedInterpreter.type === 'browser') {
+      // Browser Execution
+      setTimeout(() => {
+        const rootEl = document.getElementById('visual-root');
+        if (!rootEl) {
+            setIsRunning(false);
+            return;
+        }
+        executeUserCode(code, rootEl, addLog, selectedLanguage.id);
+        setIsRunning(false);
+      }, 150);
+    } else {
+      // Cloud/AI Execution
+      
+      // Clear previous visual output (if any)
+      const rootEl = document.getElementById('visual-root');
+      if (rootEl) rootEl.innerHTML = '';
+
+      const handleVisualOutput = (htmlContent: string) => {
+          if (rootEl) {
+              // We use an iframe even for AI output to isolate styles and scripts if present
+              const iframe = document.createElement('iframe');
+              iframe.style.width = '100%';
+              iframe.style.height = '100%';
+              iframe.style.border = 'none';
+              iframe.style.background = 'transparent'; 
+              
+              // Only simple sandbox needed for display
+              iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin');
+              
+              rootEl.appendChild(iframe);
+              iframe.srcdoc = htmlContent;
+
+              // If mobile, switch to preview tab automatically
+              if (window.innerWidth < 768) {
+                  setMobileActiveTab('preview');
+              }
+          }
+      };
+
+      await executeWithAI(code, selectedLanguage.name, addLog, handleVisualOutput);
+      setIsRunning(false);
+    }
+
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter]);
 
   const handleReset = () => {
-    if (window.confirm("Reset code to default example?")) {
-      setCode(INITIAL_CODE);
+    if (selectedLanguage && window.confirm("Reset code to default example?")) {
+      setCode(LANGUAGE_TEMPLATES[selectedLanguage.id] || '');
       handleClearLogs();
       const rootEl = document.getElementById('visual-root');
       if (rootEl) rootEl.innerHTML = '';
-      setActiveOutputTab('visual');
+      setMobileActiveTab('editor');
     }
   };
 
   const handleCodeGenerated = (newCode: string) => {
     setCode(newCode);
     setTimeout(() => {
-      const rootEl = document.getElementById('visual-root');
-      if (rootEl) {
-         handleClearLogs();
-         executeUserCode(newCode, rootEl, addLog);
-         setActiveOutputTab('visual');
-      }
+       handleRun();
     }, 100);
   };
 
+  if (!selectedLanguage || !selectedInterpreter) {
+    return (
+      <>
+        <div className="fixed top-4 right-4 z-[110]">
+           <button 
+             onClick={toggleTheme}
+             className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors"
+           >
+             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+           </button>
+        </div>
+        <LanguageSelector onSelect={handleLanguageSelect} />
+      </>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-[#030712] text-white font-sans overflow-hidden">
+    <div className="flex flex-col h-screen bg-white dark:bg-black text-gray-900 dark:text-white font-sans overflow-hidden selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white">
       <AIAssistant 
         isOpen={isAIModalOpen} 
         onClose={() => setIsAIModalOpen(false)} 
         onCodeGenerated={handleCodeGenerated} 
       />
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-5 py-3 border-b border-[#1f1f1f] bg-[#030712]/80 backdrop-blur-md shrink-0 z-40 relative">
-        <div className="flex items-center gap-4">
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-            <div className="relative bg-[#0a0a0a] p-2 rounded-lg ring-1 ring-white/10">
-              <Zap className="w-5 h-5 text-indigo-400" fill="currentColor" />
-            </div>
+      {/* --- Header --- */}
+      <header className="h-14 border-b border-gray-200 dark:border-white/10 bg-white/50 dark:bg-black/50 backdrop-blur-xl shrink-0 flex items-center justify-between px-4 z-50 transition-colors">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleBackToSelection}
+            className="p-1.5 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white transition-colors"
+            title="Change Language"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+             <Command className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-gray-100 font-mono">
-              Nexus<span className="text-indigo-500">_</span>Playground
-            </h1>
+          <div className="flex flex-col">
+            <h1 className="text-sm font-bold tracking-tight text-gray-900 dark:text-white/90">Nexus Playground</h1>
+            <span className="text-[10px] text-gray-500 dark:text-white/40 font-mono hidden sm:inline-block">
+              {selectedLanguage.name} · {selectedInterpreter.name}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsAIModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-md transition-all group"
-          >
-            <Sparkles className="w-3.5 h-3.5 group-hover:text-indigo-200 transition-colors" />
-            <span className="group-hover:text-indigo-200">AI Assistant</span>
-          </button>
+        <div className="flex items-center gap-2">
+           <button 
+             onClick={toggleTheme}
+             className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors mr-1"
+             title="Toggle Theme"
+           >
+             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+           </button>
 
-          <div className="h-5 w-px bg-[#1f1f1f] mx-2"></div>
+           <div className="hidden md:flex items-center gap-2 mr-2">
+              <button onClick={() => setIsAIModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-50 dark:bg-white/5 hover:bg-indigo-100 dark:hover:bg-white/10 border border-indigo-200 dark:border-white/5 text-xs font-medium text-indigo-600 dark:text-indigo-300 transition-all hover:border-indigo-300 dark:hover:border-indigo-500/30">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI Assist</span>
+              </button>
+              <button onClick={handleReset} className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors">
+                <RotateCcw className="w-4 h-4" />
+              </button>
+           </div>
 
-          <button
-            onClick={handleReset}
-            className="p-2 text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-md"
-            title="Reset Code"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-          
-          <button
-            onClick={handleRun}
-            disabled={isRunning}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold text-xs tracking-wide uppercase transition-all transform active:scale-95 border
-              ${isRunning 
-                ? 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed' 
-                : 'bg-white text-black border-white hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.1)]'
-              }`}
-          >
-            {isRunning ? <RotateCcw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-            {isRunning ? 'Running' : 'Run'}
-          </button>
+           <button
+             onClick={handleRun}
+             disabled={isRunning}
+             className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-semibold text-xs transition-all shadow-lg
+               ${isRunning 
+                 ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed' 
+                 : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'
+               }`}
+           >
+             {isRunning ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <Play className="w-3.5 h-3.5 fill-current" />}
+             <span className="hidden sm:inline">{isRunning ? 'Running...' : 'Run Code'}</span>
+             <span className="sm:hidden">{isRunning ? '...' : 'Run'}</span>
+           </button>
         </div>
       </header>
 
-      {/* Main Workspace */}
-      <main className="flex-1 overflow-hidden relative flex" ref={containerRef}>
+      {/* --- Main Workspace --- */}
+      <main className="flex-1 relative flex overflow-hidden" ref={containerRef}>
         
-        {/* Editor Pane */}
-        <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col min-w-[200px] relative z-10">
-           <div className="bg-[#0a0a0a] px-4 py-2 border-b border-[#1f1f1f] flex justify-between items-center shrink-0">
-             <span className="flex items-center gap-2 text-[11px] font-mono text-gray-400 uppercase tracking-wider">
-               <Code2 className="w-3.5 h-3.5" /> script.js
-             </span>
-             <span className="text-[10px] text-gray-600">JavaScript (ESNext)</span>
-           </div>
-           <div className="flex-1 relative overflow-hidden bg-[#050505]">
-             <CodeEditor code={code} onChange={setCode} />
-           </div>
+        {/* Mobile View Manager */}
+        <div className="md:hidden w-full h-full flex flex-col">
+          {mobileActiveTab === 'editor' && (
+             <div className="flex-1 relative">
+                <CodeEditor 
+                    code={code} 
+                    onChange={setCode} 
+                    language={selectedLanguage}
+                    onRun={handleRun}
+                    onAI={() => setIsAIModalOpen(true)}
+                    onChangeSettings={handleBackToSelection}
+                />
+             </div>
+          )}
+          {(mobileActiveTab === 'preview' || mobileActiveTab === 'console') && (
+             <div className="flex-1 relative">
+                <OutputPanel 
+                  logs={logs} 
+                  onClearLogs={handleClearLogs}
+                  mobileView={mobileActiveTab === 'preview' ? 'preview' : 'console'}
+                />
+             </div>
+          )}
         </div>
 
-        {/* Resizer Handle */}
-        <div 
-          className="w-1 bg-[#1f1f1f] hover:bg-indigo-500 cursor-col-resize flex items-center justify-center transition-colors z-30 group relative"
-          onMouseDown={startResize}
-        >
-          <div className="absolute inset-y-0 -left-2 -right-2 z-30"></div> {/* Hit area */}
-          <GripVertical className="w-3 h-3 text-gray-600 group-hover:text-white transition-colors opacity-0 group-hover:opacity-100" />
-        </div>
+        {/* Desktop Split View */}
+        <div className="hidden md:flex w-full h-full">
+           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group">
+              <CodeEditor 
+                code={code} 
+                onChange={setCode} 
+                language={selectedLanguage}
+                onRun={handleRun}
+                onAI={() => setIsAIModalOpen(true)}
+                onChangeSettings={handleBackToSelection}
+              />
+           </div>
 
-        {/* Output Pane */}
-        <div className="flex-1 h-full min-w-[200px] bg-[#030712] relative z-10 flex flex-col">
-          <OutputPanel 
-            logs={logs} 
-            activeTab={activeOutputTab} 
-            onClearLogs={handleClearLogs}
-            onTabChange={setActiveOutputTab}
-          />
+           <div 
+             className="w-px bg-gray-200 dark:bg-white/10 hover:bg-indigo-500 dark:hover:bg-indigo-500 cursor-col-resize relative z-20 transition-colors group flex flex-col justify-center items-center"
+             onMouseDown={startResize}
+           >
+              <div className="absolute inset-y-0 -left-2 -right-2 z-30" />
+              <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+           </div>
+
+           <div className="flex-1 h-full min-w-0 bg-gray-50 dark:bg-[#030304]">
+              <OutputPanel 
+                logs={logs} 
+                onClearLogs={handleClearLogs}
+              />
+           </div>
         </div>
       </main>
-      
-      {/* Footer */}
-      <footer className="bg-[#0a0a0a] border-t border-[#1f1f1f] px-4 py-1.5 flex items-center justify-between text-[10px] text-gray-500 select-none shrink-0 z-40">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-             <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]'}`}></div>
-             <span className="font-medium text-gray-400">{isRunning ? 'Compiling...' : 'System Ready'}</span>
-          </div>
-          <span>|</span>
-          <span>Ln {code.split('\n').length}, Col 1</span>
+
+      {/* --- Mobile Bottom Navigation --- */}
+      <nav className="md:hidden h-16 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center shrink-0 pb-safe z-50">
+         <button 
+           onClick={() => setMobileActiveTab('editor')}
+           className={`flex flex-col items-center justify-center gap-1 h-full ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}
+         >
+           <Code2 className="w-5 h-5" />
+           <span className="text-[10px] font-medium">Code</span>
+         </button>
+         
+         <button 
+           onClick={() => setMobileActiveTab('preview')}
+           className={`flex flex-col items-center justify-center gap-1 h-full ${mobileActiveTab === 'preview' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}
+         >
+           <Monitor className="w-5 h-5" />
+           <span className="text-[10px] font-medium">Preview</span>
+         </button>
+
+         <button 
+           onClick={() => setMobileActiveTab('console')}
+           className={`relative flex flex-col items-center justify-center gap-1 h-full ${mobileActiveTab === 'console' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}
+         >
+           <Terminal className="w-5 h-5" />
+           <span className="text-[10px] font-medium">Console</span>
+           {logs.length > 0 && (
+             <span className="absolute top-2 right-4 w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+           )}
+         </button>
+
+         <button 
+            onClick={() => setIsAIModalOpen(true)}
+            className="flex flex-col items-center justify-center gap-1 h-full text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+         >
+            <Sparkles className="w-5 h-5" />
+            <span className="text-[10px] font-medium">AI</span>
+         </button>
+      </nav>
+
+      {/* --- Desktop Status Bar --- */}
+      <footer className="hidden md:flex h-7 bg-white dark:bg-[#050505] border-t border-gray-200 dark:border-white/10 px-3 items-center justify-between text-[10px] text-gray-500 select-none shrink-0 z-40 transition-colors">
+        <div className="flex items-center gap-3">
+           <div className="flex items-center gap-1.5">
+              <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></div>
+              <span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Running...' : 'Ready'}</span>
+           </div>
+           <div className="w-px h-3 bg-gray-300 dark:bg-white/10"></div>
+           <span>{selectedLanguage.name} · {selectedInterpreter.name}</span>
         </div>
-        <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-           <span>Gemini 2.5 Active</span>
+        <div className="flex items-center gap-2">
+           <div className="flex items-center gap-1 text-gray-400 dark:text-gray-600">
+             <Settings2 className="w-3 h-3" />
+             <span>{selectedInterpreter.type === 'browser' ? 'Local Runtime' : 'Cloud Simulation'}</span>
+           </div>
         </div>
       </footer>
     </div>

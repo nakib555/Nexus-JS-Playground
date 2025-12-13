@@ -1,13 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Nexus JS Playground</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- PrismJS for Syntax Highlighting -->
+    <!-- Core & Dependencies (Order is critical) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" data-manual></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup-templating.min.js"></script>
+
+    <!-- Language Grammars -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-ruby.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-swift.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+
     <script>
-      // Polyfill process for browser environment to prevent crashes in libraries
       if (typeof window.process === 'undefined') {
         window.process = { env: { NODE_ENV: 'development' } };
       } else if (!window.process.env) {
@@ -15,6 +38,7 @@
       }
 
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
@@ -25,22 +49,22 @@
               gray: {
                 850: '#1f2937',
                 900: '#111827',
-                950: '#030712', // Ultra dark
+                950: '#030712', 
               },
-              nexus: {
-                dark: '#050505',
-                panel: '#0a0a0a',
-                border: '#1f1f1f',
-              }
             },
             animation: {
               'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'shimmer': 'shimmer 2s linear infinite',
+              'fade-in': 'fadeIn 0.3s ease-out forwards',
             },
             keyframes: {
               shimmer: {
                 '0%': { backgroundPosition: '-200% 0' },
                 '100%': { backgroundPosition: '200% 0' },
+              },
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
               }
             }
           },
@@ -49,40 +73,70 @@
     </script>
     <style>
       :root {
+        /* Light Mode Syntax */
+        --syntax-bg: #ffffff;
+        --syntax-comment: #6a737d;
+        --syntax-string: #0a3069;
+        --syntax-keyword: #d73a49;
+        --syntax-number: #005cc5;
+        --syntax-function: #6f42c1;
+        --syntax-builtin: #e36209;
+        --syntax-operator: #005cc5;
+        --syntax-punctuation: #24292e;
+        
+        --bg-body: #f9fafb;
+        --text-body: #111827;
+      }
+
+      html.dark {
+        /* Dark Mode Syntax */
         --syntax-bg: #050505;
-        --syntax-text: #e5e7eb;
         --syntax-comment: #6b7280;
         --syntax-string: #a5d6ff;
         --syntax-keyword: #ff7b72;
         --syntax-number: #79c0ff;
         --syntax-function: #d2a8ff;
-        --syntax-operator: #79c0ff;
         --syntax-builtin: #f0883e;
+        --syntax-operator: #79c0ff;
         --syntax-punctuation: #8b949e;
+        
+        --bg-body: #000000;
+        --text-body: #e2e8f0;
       }
 
       body {
-        background-color: #030712;
-        background-image: 
-          radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.03) 0%, transparent 50%),
-          radial-gradient(circle at 0% 50%, rgba(99, 102, 241, 0.03) 0%, transparent 50%);
+        background-color: var(--bg-body);
+        color: var(--text-body);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      
+      ::selection {
+        background: rgba(99, 102, 241, 0.3);
+        color: inherit;
       }
 
-      /* Custom Scrollbar */
+      /* Modern Thin Scrollbar */
       ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
         background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #374151; 
-        border-radius: 5px;
-        border: 2px solid #030712; /* Creates padding effect */
+        background: rgba(156, 163, 175, 0.3); 
+        border-radius: 10px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1); 
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #4b5563; 
+        background: rgba(156, 163, 175, 0.5); 
+      }
+      .dark ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.2); 
       }
       ::-webkit-scrollbar-corner {
         background: transparent;
@@ -94,27 +148,38 @@
         height: 100%;
         overflow: auto;
         position: relative;
-        background-image: 
-          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        background-size: 20px 20px;
+        background-size: 24px 24px;
+        background-color: transparent;
+      }
+      
+      /* Grid background handled in CSS to switch with theme */
+      .visual-grid-bg {
+        background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.05) 1px, transparent 0);
+      }
+      .dark .visual-grid-bg {
+        background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
       }
 
-      /* Syntax Highlighting Classes */
-      .token-comment { color: var(--syntax-comment); font-style: italic; }
-      .token-string { color: var(--syntax-string); }
-      .token-keyword { color: var(--syntax-keyword); }
-      .token-number { color: var(--syntax-number); }
-      .token-function { color: var(--syntax-function); }
-      .token-builtin { color: var(--syntax-builtin); }
-      .token-operator { color: var(--syntax-operator); }
-      .token-punctuation { color: var(--syntax-punctuation); }
+      /* Prism Syntax Highlighting */
+      .token.comment, .token.prolog, .token.doctype, .token.cdata { color: var(--syntax-comment); font-style: italic; }
+      .token.string, .token.attr-value { color: var(--syntax-string); }
+      .token.keyword, .token.atrule, .token.control-flow { color: var(--syntax-keyword); }
+      .token.number, .token.boolean, .token.constant, .token.symbol { color: var(--syntax-number); }
+      .token.function, .token.class-name { color: var(--syntax-function); }
+      .token.builtin, .token.important, .token.regex, .token.variable { color: var(--syntax-builtin); }
+      .token.operator, .token.entity, .token.url { color: var(--syntax-operator); }
+      .token.punctuation { color: var(--syntax-punctuation); }
+      .token.property, .token.tag { color: var(--syntax-keyword); }
+      .token.attr-name { color: var(--syntax-builtin); }
+      
+      .token.bold { font-weight: bold; }
+      .token.italic { font-style: italic; }
 
-      /* Loading Animation */
+      /* Loader */
       #loading-overlay {
         position: fixed;
         inset: 0;
-        background: #000;
+        background: var(--bg-body);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -123,50 +188,41 @@
         transition: opacity 0.5s ease;
       }
       .loader {
-        position: relative;
-        width: 60px;
-        height: 60px;
-      }
-      .loader:before, .loader:after {
-        content: '';
+        width: 48px;
+        height: 48px;
+        border: 3px solid;
+        border-color: #6366f1;
+        border-bottom-color: transparent;
         border-radius: 50%;
-        position: absolute;
-        inset: 0;
-        box-shadow: 0 0 10px 2px rgba(0, 0, 0, 0.3) inset;
+        display: inline-block;
+        box-sizing: border-box;
+        animation: rotation 1s linear infinite;
       }
-      .loader:after {
-        box-shadow: 0 2px 0 #4f46e5 inset;
-        animation: rotate 2s linear infinite;
-      }
-      @keyframes rotate {
-        0% { transform: rotate(0deg)}
-        100% { transform: rotate(360deg)}
+      @keyframes rotation {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudio/react@18.2.0",
-    "react-dom/client": "https://aistudio/react-dom@18.2.0/client",
-    "lucide-react": "https://aistudio/lucide-react@0.294.0?deps=react@18.2.0",
-    "@google/genai": "https://aistudio/@google/genai",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react": "https://aistudiocdn.com/react@^18.2.0",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^18.2.0/client",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.294.0?deps=react@18.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.3/",
+    "react/": "https://aistudiocdn.com/react@^18.2.0/"
   }
 }
 </script>
 </head>
-  <body class="bg-[#030712] text-slate-200 overflow-hidden">
-    <!-- Initial Loading State -->
+  <body class="overflow-hidden">
     <div id="loading-overlay">
       <span class="loader"></span>
-      <p class="mt-6 text-gray-500 font-mono text-[10px] tracking-[0.3em] uppercase opacity-60">Initializing Nexus</p>
     </div>
-    
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
-      // Robust loader removal
       window.addEventListener('load', () => {
         const removeLoader = () => {
           const loader = document.getElementById('loading-overlay');
@@ -175,28 +231,13 @@
             setTimeout(() => loader.remove(), 500);
           }
         };
-
-        // Try to wait for React, but force remove if it takes too long to show errors
         const checkReact = setInterval(() => {
            if (document.getElementById('root') && document.getElementById('root').childElementCount > 0) {
              clearInterval(checkReact);
              removeLoader();
            }
         }, 100);
-
-        // Fallback: Remove after 2.5s regardless of React state so we see ErrorBoundary if crashed
-        setTimeout(() => {
-          clearInterval(checkReact);
-          removeLoader();
-        }, 2500);
-      });
-      
-      // Safety net for global errors during load
-      window.addEventListener('error', () => {
-        setTimeout(() => {
-          const loader = document.getElementById('loading-overlay');
-          if (loader) loader.style.display = 'none';
-        }, 100);
+        setTimeout(() => { clearInterval(checkReact); removeLoader(); }, 3000);
       });
     </script>
   </body>
