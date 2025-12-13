@@ -162,7 +162,7 @@ const App: React.FC = () => {
             setIsRunning(false);
             return;
         }
-        executeUserCode(code, rootEl, addLog, selectedLanguage.id);
+        executeUserCode(code, rootEl, addLog, selectedLanguage.id, selectedInterpreter.id);
         setIsRunning(false);
       }, 50); 
     } else {
@@ -199,7 +199,7 @@ const App: React.FC = () => {
       };
 
       try {
-         await executeWithAI(code, selectedLanguage.name, addLog, handleVisualOutput, signal);
+         await executeWithAI(code, selectedLanguage.name, selectedInterpreter, addLog, handleVisualOutput, signal);
       } catch (e) {
          // Ignore abort errors
       } finally {

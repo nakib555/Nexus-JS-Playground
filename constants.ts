@@ -6,7 +6,7 @@ export const LANGUAGES: Language[] = [
     name: 'Universal / Pseudocode', 
     prismId: 'markdown', 
     interpreters: [
-      { id: 'uni-ai', name: 'Universal AI Runner', type: 'cloud', version: 'Latest', description: 'Executes any code, pseudocode, or algorithms in any language. Supports mixed visual and text output.' }
+      { id: 'uni-ai', name: 'Universal AI Runner', type: 'cloud', version: 'Latest', description: 'Executes any code, pseudocode, or algorithms. Supports visual output (charts, diagrams, flowcharts) automatically.' }
     ]
   },
   { 
@@ -14,8 +14,8 @@ export const LANGUAGES: Language[] = [
     name: 'JavaScript', 
     prismId: 'javascript', 
     interpreters: [
-      { id: 'js-v8', name: 'Browser Engine (V8)', type: 'browser', version: 'ESNext', description: 'Executes locally in your browser context. Supports DOM manipulation.' },
-      { id: 'js-node', name: 'Node.js Simulator', type: 'cloud', version: 'v20.x', description: 'Simulates a server-side Node.js environment.' }
+      { id: 'js-v8', name: 'Browser Runtime', type: 'browser', version: 'ESNext', description: 'Executes locally in the browser. Supports DOM and Web APIs.' },
+      { id: 'js-libs', name: 'Library Runtime', type: 'browser', version: 'ESM / NPM', description: 'Supports importing external NPM libraries via ES Modules.' }
     ]
   },
   { 
@@ -23,15 +23,7 @@ export const LANGUAGES: Language[] = [
     name: 'HTML / CSS', 
     prismId: 'markup', 
     interpreters: [
-      { id: 'html-browser', name: 'Browser Renderer', type: 'browser', version: 'HTML5', description: 'Renders HTML and CSS directly in the visual sandbox.' }
-    ]
-  },
-  { 
-    id: 'typescript', 
-    name: 'TypeScript', 
-    prismId: 'typescript', 
-    interpreters: [
-      { id: 'ts-node', name: 'TypeScript Runtime', type: 'cloud', version: '5.3', description: 'Executes TypeScript via Node.js simulation.' }
+      { id: 'html-browser', name: 'Browser Renderer', type: 'browser', version: 'HTML5', description: 'Renders HTML/CSS/JS directly in the sandbox.' }
     ]
   },
   { 
@@ -39,7 +31,17 @@ export const LANGUAGES: Language[] = [
     name: 'Python', 
     prismId: 'python', 
     interpreters: [
-      { id: 'py-3', name: 'Python 3 Runtime', type: 'cloud', version: '3.12', description: 'Standard Python interpreter via Cloud simulation.' }
+      { id: 'py-std', name: 'Standard Runtime', type: 'cloud', version: '3.12', description: 'Standard Python. Supports text output and standard visuals (e.g. Turtle, Tkinter simulation).' },
+      { id: 'py-libs', name: 'Data & Science', type: 'cloud', version: 'Anaconda Sim', description: 'Supports heavy libraries like NumPy, Pandas, Matplotlib, SciPy, etc.' }
+    ]
+  },
+  { 
+    id: 'typescript', 
+    name: 'TypeScript', 
+    prismId: 'typescript', 
+    interpreters: [
+      { id: 'ts-node', name: 'TypeScript Runtime', type: 'cloud', version: '5.3', description: 'Executes TypeScript via Node.js simulation.' },
+      { id: 'ts-web', name: 'Web Runtime', type: 'cloud', version: 'React/Web', description: 'Simulates TypeScript in a web context (DOM, React).' }
     ]
   },
   { 
@@ -47,7 +49,8 @@ export const LANGUAGES: Language[] = [
     name: 'Java', 
     prismId: 'java', 
     interpreters: [
-      { id: 'java-21', name: 'OpenJDK', type: 'cloud', version: '21', description: 'Java SE 21 environment.' }
+      { id: 'java-std', name: 'OpenJDK 21', type: 'cloud', version: '21', description: 'Standard Java SE environment.' },
+      { id: 'java-ui', name: 'GUI / Enterprise', type: 'cloud', version: 'Full', description: 'Supports Swing, AWT, and JavaFX simulation for visual apps.' }
     ]
   },
   { 
@@ -55,7 +58,8 @@ export const LANGUAGES: Language[] = [
     name: 'C#', 
     prismId: 'csharp', 
     interpreters: [
-      { id: 'dotnet-8', name: '.NET Core', type: 'cloud', version: '8.0', description: 'C# execution on .NET 8 runtime.' }
+      { id: 'dotnet-core', name: '.NET Core', type: 'cloud', version: '8.0', description: 'Standard C# console and logic execution.' },
+      { id: 'dotnet-full', name: 'Windows / UI', type: 'cloud', version: 'Framework', description: 'Simulates WinForms/WPF output visually.' }
     ]
   },
   { 
@@ -63,7 +67,8 @@ export const LANGUAGES: Language[] = [
     name: 'C++', 
     prismId: 'cpp', 
     interpreters: [
-      { id: 'gcc-13', name: 'GCC', type: 'cloud', version: '13.2', description: 'GNU Compiler Collection.' }
+      { id: 'cpp-gcc', name: 'GCC 13', type: 'cloud', version: '13.2', description: 'Standard C++ compiler.' },
+      { id: 'cpp-gfx', name: 'Graphics / SDL', type: 'cloud', version: 'Simulated', description: 'Simulates graphics libraries like SDL, OpenGL, or SFML output.' }
     ]
   },
   { 
@@ -71,7 +76,8 @@ export const LANGUAGES: Language[] = [
     name: 'Go', 
     prismId: 'go', 
     interpreters: [
-      { id: 'go-1', name: 'Go Runtime', type: 'cloud', version: '1.22', description: 'Standard Go compiler and runner.' }
+      { id: 'go-std', name: 'Go Runtime', type: 'cloud', version: '1.22', description: 'Standard Go execution.' },
+      { id: 'go-full', name: 'Full / UI', type: 'cloud', version: '1.22', description: 'Supports Fyne, Gio, and other Go GUI library simulations.' }
     ]
   },
   { 
@@ -79,7 +85,8 @@ export const LANGUAGES: Language[] = [
     name: 'Rust', 
     prismId: 'rust', 
     interpreters: [
-      { id: 'rust-c', name: 'Cargo / Rustc', type: 'cloud', version: '1.75', description: 'Official Rust compiler.' }
+      { id: 'rust-std', name: 'Rustc', type: 'cloud', version: '1.75', description: 'Standard Rust compilation.' },
+      { id: 'rust-gfx', name: 'Game / UI', type: 'cloud', version: 'Simulated', description: 'Supports Bevy, Gtk-rs, and other visual library simulations.' }
     ]
   },
   { 
@@ -87,7 +94,8 @@ export const LANGUAGES: Language[] = [
     name: 'Ruby', 
     prismId: 'ruby', 
     interpreters: [
-      { id: 'ruby-3', name: 'Ruby MRI', type: 'cloud', version: '3.3', description: 'Standard Ruby interpreter.' }
+      { id: 'ruby-std', name: 'Ruby MRI', type: 'cloud', version: '3.3', description: 'Standard Ruby interpreter.' },
+      { id: 'ruby-rails', name: 'Rails / Web', type: 'cloud', version: 'Simulated', description: 'Simulates web output/responses.' }
     ]
   },
   { 
@@ -95,7 +103,8 @@ export const LANGUAGES: Language[] = [
     name: 'PHP', 
     prismId: 'php', 
     interpreters: [
-      { id: 'php-8', name: 'PHP CLI', type: 'cloud', version: '8.3', description: 'PHP command line interface.' }
+      { id: 'php-cli', name: 'PHP CLI', type: 'cloud', version: '8.3', description: 'Command line PHP execution.' },
+      { id: 'php-web', name: 'Web Server', type: 'cloud', version: 'Apache Sim', description: 'Simulates PHP rendering HTML/Images (GD).' }
     ]
   },
   { 
@@ -103,7 +112,8 @@ export const LANGUAGES: Language[] = [
     name: 'Swift', 
     prismId: 'swift', 
     interpreters: [
-      { id: 'swift-5', name: 'Swift CLI', type: 'cloud', version: '5.9', description: 'Swift programming language.' }
+      { id: 'swift-cli', name: 'Swift CLI', type: 'cloud', version: '5.9', description: 'Standard Swift environment.' },
+      { id: 'swift-ui', name: 'SwiftUI Sim', type: 'cloud', version: 'iOS/Mac', description: 'Simulates SwiftUI/UIKit visual output.' }
     ]
   },
   { 
@@ -150,7 +160,8 @@ plt.legend()
 plt.show()
 `,
   javascript: `// Welcome to Nexus Playground
-// Interpreter: Selected Runtime
+// Select 'Library Runtime' to use imports like:
+// import confetti from 'canvas-confetti';
 
 console.log("System initialized.");
 
@@ -363,7 +374,6 @@ func main() {
 	
 	fmt.Println("Waiting...")
 	msg := <-c
-	fmt.Println(msg)
 	fmt.Println("Done")
 }
 `,

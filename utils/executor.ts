@@ -9,7 +9,8 @@ export const executeUserCode = (
   code: string, 
   rootElement: HTMLElement, 
   onLog: (type: LogType, args: any[]) => void,
-  languageId: string = 'javascript'
+  languageId: string = 'javascript',
+  interpreterId?: string
 ) => {
   // 1. Clear previous content to destroy the old context
   rootElement.innerHTML = '';
@@ -109,7 +110,6 @@ export const executeUserCode = (
 
   if (languageId === 'html') {
     // HTML Mode: Inject interceptor and then the raw user code
-    // We add some basic styles to ensure it looks good in the container
     htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -128,19 +128,57 @@ export const executeUserCode = (
       </html>
     `;
   } else {
-    // JavaScript Mode: Create a root div and run script
+    // JavaScript Mode
+    
+    // Check if Library Runtime is active
+    const isLibraryMode = interpreterId === 'js-libs';
+    let importMapScript = '';
+    let scriptTagOpen = '<script>';
+
+    if (isLibraryMode) {
+      // 1. Scan for imports
+      const importRegex = /import\s+(?:[\w*\s{},]*\s+from\s+)?['"]([^'"]+)['"]/g;
+      const imports = [];
+      let match;
+      // Copy code to avoid state issues with regex
+      const codeToScan = code;
+      while ((match = importRegex.exec(codeToScan)) !== null) {
+        imports.push(match[1]);
+      }
+      
+      // Filter out relative/absolute paths, keep bare modules (e.g. 'react', 'canvas-confetti')
+      const bareModules = [...new Set(imports)].filter(i => !i.startsWith('.') && !i.startsWith('/') && !i.startsWith('http'));
+      
+      if (bareModules.length > 0) {
+        const importMap = {
+          imports: bareModules.reduce((acc: any, lib: string) => ({
+            ...acc,
+            [lib]: `https://esm.sh/${lib}`
+          }), {})
+        };
+        importMapScript = `<script type="importmap">${JSON.stringify(importMap)}</script>`;
+        
+        // Notify user in console about installed libs
+        onLog(LogType.INFO, [`Installing temporary libraries: ${bareModules.join(', ')}...`]);
+      }
+
+      // Switch to module execution
+      scriptTagOpen = '<script type="module">';
+    }
+
     htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
            ${consoleInterceptor}
+           ${importMapScript}
            <style>
              body { margin: 0; overflow: auto; background: transparent; color: inherit; font-family: 'Inter', sans-serif; }
            </style>
         </head>
         <body>
           <div id="root"></div>
-          <script>
+          ${scriptTagOpen}
              const root = document.getElementById('root');
              
              // Helper for download (simulated)
@@ -156,12 +194,7 @@ export const executeUserCode = (
              };
 
              try {
-                // Wrap in block to allow top-level 'return' if necessary, though 'Function' is usually better for that.
-                // However, since we are in a module/script tag, direct execution is fine.
-                // We run this inside a try-catch to report immediate errors.
-                
                 ${code}
-                
              } catch(e) {
                 console.error(e);
              }

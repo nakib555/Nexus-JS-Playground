@@ -1,9 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { LogType } from "../types";
+import { Interpreter } from "../types";
 
 export const executeWithAI = async (
   code: string,
   languageName: string,
+  interpreter: Interpreter,
   onLog: (type: LogType, messages: any[]) => void,
   onVisual?: (htmlContent: string) => void,
   signal?: AbortSignal
@@ -16,29 +18,36 @@ export const executeWithAI = async (
     // Using Pro model for complex reasoning and code simulation
     const model = 'gemini-3-pro-preview';
     
-    onLog(LogType.INFO, [`[${languageName}] Initializing remote execution environment...`]);
+    onLog(LogType.INFO, [`[${languageName}] Initializing ${interpreter.name}...`]);
+
+    const isLibraryMode = interpreter.id.endsWith('-libs') || 
+                         interpreter.id.includes('ui') ||
+                         interpreter.id.includes('gfx') ||
+                         interpreter.id.includes('full') ||
+                         interpreter.id.includes('web') ||
+                         interpreter.description.toLowerCase().includes('library');
 
     const prompt = `
     You are an advanced universal code execution engine. 
-    User provided code in language: ${languageName}.
+    User provided code in language: ${languageName} (${interpreter.name}).
     
     Your task:
     1. Act as the compiler/interpreter for this language.
     2. Simulate the execution of the code provided below with 100% accuracy.
-    3. Return the standard output (stdout) of the code.
+    3. Return the output of the code.
     
     CAPABILITIES:
     - You handle ANY language (Python, Javascript, C++, Java, Go, Rust, Pseudocode, Bash, SQL, etc.).
-    - You simulate standard libraries.
-    - IMPORTANT: If the user code attempts to use popular external libraries (like matplotlib, numpy, pandas, three.js, react, etc.) you MUST simulate their behavior and output as if they were installed and working perfectly.
-    - If the output is purely text, return text.
-    - If the output is visual (plot, UI, image, dashboard), return HTML/SVG.
-    - If the output is structured data (tables, lists), format it nicely as text or HTML.
-    - If the output is mixed, separate them clearly.
+    - You simulate STANDARD libraries (e.g., Python Turtle, Java Swing, C++ IO, Math libs).
+    - You simulate EXTERNAL libraries (e.g., NumPy, React, Three.js, Gtk, SDL) if the code uses them, even if not explicitly installed.
     
     OUTPUT FORMATTING:
     - Text Output: Return the raw text stdout.
-    - Visual Output: If the code creates a plot, image, UI, diagram, or GUI, return the raw HTML/SVG representation of that output.
+    - Visual Output: If the code creates ANY visual content (plot, image, UI, diagram, dashboard), you MUST generate the raw HTML/SVG representation of that output.
+      - For plots (Python/R/Matlab): Generate SVG.
+      - For GUI apps (Java Swing/C# WPF/C++ Qt): Generate a faithful HTML/CSS representation of the window.
+      - For Web (HTML/JS/PHP): Render the resulting HTML.
+      - For Graphics (OpenGL/SDL): Render the frame as SVG or Canvas logic.
     - Mixed Output: If code produces BOTH text and visual:
       1. Text Output
       2. "@@@NEXUS_VISUAL_BREAK@@@"
@@ -48,7 +57,7 @@ export const executeWithAI = async (
     - If there is a syntax or runtime error, return the error message exactly as the interpreter would.
 
     RULES:
-    - Do NOT wrap output in markdown code blocks (no \`\`\` wrappers).
+    - Do NOT wrap output in markdown code blocks (no \`\`\` wrappers) unless it's part of the program's output.
     - Do NOT add conversational filler ("Here is the output...").
     - Just the raw execution result.
     
@@ -69,8 +78,11 @@ export const executeWithAI = async (
 
     let output = response.text || '';
     
-    // Clean up markdown code blocks if the model accidentally adds them
-    output = output.replace(/^```(html|xml|svg|text)?/, '').replace(/```$/, '').trim();
+    // Clean up markdown code blocks if the model accidentally adds them for the whole response
+    // We only remove if it wraps the ENTIRE response to avoid breaking valid code output.
+    if (output.startsWith('```') && output.endsWith('```')) {
+         output = output.replace(/^```(html|xml|svg|text)?/, '').replace(/```$/, '').trim();
+    }
 
     if (output) {
       // Check for Explicit Split
