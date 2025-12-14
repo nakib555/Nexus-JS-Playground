@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LogEntry, LogType } from '../types';
-import { Terminal, Box, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Minimize2, Split, GripVertical, FunctionSquare } from 'lucide-react';
+import { Terminal, Box, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Minimize2, Split, GripVertical, FunctionSquare, Table } from 'lucide-react';
 
 interface OutputPanelProps {
   logs: LogEntry[];
@@ -41,6 +41,62 @@ const MarkdownText: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
+const TableInspector: React.FC<{ data: any[] }> = ({ data }) => {
+  if (!Array.isArray(data) || data.length === 0) return <span className="text-gray-400 italic">Empty Table</span>;
+  
+  // Collect all unique keys from all objects
+  const headers = Array.from(new Set(data.filter(item => typeof item === 'object' && item !== null).flatMap(Object.keys)));
+  
+  // If not objects, just list them
+  if (headers.length === 0) {
+      return (
+        <div className="overflow-x-auto my-2 border border-gray-200 dark:border-white/10 rounded-lg max-h-60">
+           <table className="w-full text-left text-[10px] border-collapse">
+               <thead className="bg-gray-100 dark:bg-white/5 sticky top-0 z-10">
+                   <tr>
+                       <th className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold w-12 text-center">Index</th>
+                       <th className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold">Value</th>
+                   </tr>
+               </thead>
+               <tbody>
+                   {data.map((row, i) => (
+                       <tr key={i} className="border-b border-gray-200 dark:border-white/5 last:border-0 hover:bg-black/5 dark:hover:bg-white/5">
+                           <td className="p-2 border-r border-gray-200 dark:border-white/10 text-gray-400 text-center">{i}</td>
+                           <td className="p-2 font-mono"><InspectorNode value={row} /></td>
+                       </tr>
+                   ))}
+               </tbody>
+           </table>
+        </div>
+      )
+  }
+
+  return (
+    <div className="overflow-x-auto my-2 border border-gray-200 dark:border-white/10 rounded-lg max-h-60 custom-scrollbar shadow-sm">
+      <table className="w-full text-left text-[10px] border-collapse bg-white dark:bg-black/20">
+        <thead className="bg-gray-100 dark:bg-white/5 sticky top-0 z-10">
+          <tr>
+            <th className="p-2 border-b border-r border-gray-200 dark:border-white/10 font-semibold w-12 text-center text-gray-500">(index)</th>
+            {headers.map(h => <th key={h} className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => (
+            <tr key={i} className="border-b border-gray-200 dark:border-white/5 last:border-0 hover:bg-indigo-50 dark:hover:bg-white/5 transition-colors">
+              <td className="p-2 border-r border-gray-200 dark:border-white/10 text-gray-400 text-center font-mono">{i}</td>
+              {headers.map(h => (
+                <td key={h} className="p-2 font-mono whitespace-nowrap max-w-[200px] overflow-hidden text-ellipsis">
+                  <InspectorNode value={row?.[h]} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = ({ name, value, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(depth < 1);
   const type = getType(value);
@@ -50,6 +106,19 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
   const renderValue = () => {
     switch (type) {
       case 'string':
+        // Try to parse JSON strings to show them interactively
+        if ((value.startsWith('{') || value.startsWith('[')) && value.length < 10000) {
+            try {
+                const parsed = JSON.parse(value);
+                // Only render as object if it's actually structured data
+                if (typeof parsed === 'object' && parsed !== null) {
+                    return <InspectorNode value={parsed} depth={depth} />;
+                }
+            } catch (e) {
+                // Ignore, render as string
+            }
+        }
+
         // Detect Images (Base64 or URL or Blob)
         if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i) || value.includes('placeholder')))) {
             return (
@@ -66,7 +135,7 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
                  </div>
              );
         }
-        return <span className="text-orange-600 dark:text-orange-300"><MarkdownText text={value} /></span>;
+        return <span className="text-orange-600 dark:text-orange-300 whitespace-pre-wrap break-all"><MarkdownText text={value} /></span>;
       case 'number':
         return <span className="text-blue-600 dark:text-cyan-300 font-bold">{value}</span>;
       case 'boolean':
@@ -149,9 +218,6 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
       return;
     }
     // Auto Mode Logic:
-    // If hasVisualContentOverride is true (from executor), we trust it.
-    // Fallback: If logs exist and NO visual -> Console
-    
     if (hasVisualContentOverride) {
        if (logs.length > 0) {
          setEffectiveLayout('split');
@@ -159,9 +225,8 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
          setEffectiveLayout('visual');
        }
     } else {
-       // Default to console if no visual confirmed, but if no logs, maybe show visual container empty?
-       // Better to show console by default if uncertain.
-       setEffectiveLayout(logs.length > 0 ? 'console' : 'console'); 
+       // Even if logs are empty, defaulting to console feels more standard for a code runner until visual appears
+       setEffectiveLayout('console'); 
     }
   }, [layoutMode, hasVisualContentOverride, logs.length, mobileView]);
 
@@ -239,9 +304,14 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                       {log.type === LogType.WARN && <AlertTriangle className="w-3 h-3 text-yellow-500 dark:text-yellow-400" />}
                       {log.type === LogType.SUCCESS && <CheckCircle2 className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />}
                       {log.type === LogType.INFO && <Info className="w-3 h-3 text-blue-500 dark:text-blue-400" />}
+                      {log.type === LogType.TABLE && <Table className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />}
                     </span>
                     <div className="flex-1 min-w-0 font-mono text-[11px] leading-relaxed text-gray-700 dark:text-gray-300 break-words flex flex-col gap-1.5">
-                       {log.messages.map((msg, i) => <InspectorNode key={i} value={msg} />)}
+                       {log.type === LogType.TABLE ? (
+                          <TableInspector data={log.messages[0]} />
+                       ) : (
+                          log.messages.map((msg, i) => <InspectorNode key={i} value={msg} />)
+                       )}
                     </div>
                     <span className="text-[9px] text-gray-400 dark:text-gray-700 shrink-0 font-sans select-none opacity-0 group-hover:opacity-100 transition-opacity pt-1">{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}</span>
                   </div>

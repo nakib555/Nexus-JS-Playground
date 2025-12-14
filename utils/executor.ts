@@ -153,7 +153,7 @@ export const executeUserCode = (
           warn: (...args) => { originalConsole.warn(...args); sendLog('warn', args); },
           info: (...args) => { originalConsole.info(...args); sendLog('info', args); },
           debug: (...args) => { originalConsole.debug(...args); sendLog('info', args); },
-          table: (...args) => { originalConsole.table(...args); sendLog('info', args); },
+          table: (...args) => { originalConsole.table(...args); sendLog('table', args); },
           clear: () => { }
         };
 

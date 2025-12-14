@@ -5,7 +5,8 @@ export enum LogType {
   ERROR = 'error',
   WARN = 'warn',
   SUCCESS = 'success',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
+  TABLE = 'table'
 }
 
 export interface LogEntry {
