@@ -64,17 +64,7 @@ if (HAS_DOCKER) {
 
 // --- Active Sessions ---
 const activeSessions = new Map();
-const LOCAL_RUNTIMES = {
-  node: 'node',
-  python: 'python3',
-  go: 'go run',
-  ruby: 'ruby',
-  php: 'php',
-  bash: 'bash',
-  sh: 'sh',
-  gcc: 'g++',
-  java: 'java'
-};
+
 const getLocalCommand = (image) => {
   if (image.includes('node')) return 'node';
   if (image.includes('python')) return 'python3';
@@ -83,6 +73,43 @@ const getLocalCommand = (image) => {
   if (image.includes('php')) return 'php';
   if (image.includes('alpine') && !image.includes('gxx')) return 'sh';
   return null;
+};
+
+// --- Helper: Check for Output Files (Images, HTML, JSON) ---
+const checkAndEmitOutputs = (socket, dir, cleanupFiles = []) => {
+    const outputs = [
+        { file: 'output.png', mime: 'image/png', isBinary: true },
+        { file: 'output.jpg', mime: 'image/jpeg', isBinary: true },
+        { file: 'output.jpeg', mime: 'image/jpeg', isBinary: true },
+        { file: 'output.svg', mime: 'image/svg+xml', isBinary: false },
+        { file: 'output.html', mime: 'text/html', isBinary: false },
+        { file: 'output.json', mime: 'application/json', isBinary: false }
+    ];
+
+    outputs.forEach(out => {
+        const p = path.join(dir, out.file);
+        if (fs.existsSync(p)) {
+            try {
+                if (out.isBinary) {
+                    const b64 = fs.readFileSync(p, 'base64');
+                    socket.emit('output', { stream: 'stdout', data: `data:${out.mime};base64,${b64}` });
+                } else {
+                    const content = fs.readFileSync(p, 'utf8');
+                    socket.emit('output', { stream: 'stdout', data: content });
+                }
+                fs.unlinkSync(p);
+            } catch (e) {
+                console.error(`Error processing output file ${out.file}:`, e);
+            }
+        }
+    });
+
+    // Cleanup source files
+    cleanupFiles.forEach(f => {
+        if (fs.existsSync(f)) {
+            try { fs.unlinkSync(f); } catch(e){}
+        }
+    });
 };
 
 // --- Session Cleanup ---
@@ -161,32 +188,66 @@ io.on('connection', (socket) => {
             if (!inspect.Running) {
               clearInterval(checkExit);
               
-              // Check for potential image output (e.g. from a script that wrote to /tmp/output.png)
-              // This is a heuristic to support visual output from non-library code if it manages to produce a file
-              const containerImgPath = '/tmp/output.png'; 
-              const imgCmd = `if [ -f ${containerImgPath} ]; then base64 ${containerImgPath}; rm ${containerImgPath}; fi`;
-              const imgExec = await container.exec({ Cmd: ['sh', '-c', imgCmd], AttachStdout: true });
-              const imgStream = await imgExec.start();
-              let imgData = '';
-              container.modem.demuxStream(imgStream, { write: c => imgData += c.toString() }, { write: () => {} });
+              // Check for potential image/html output in container
+              // We check common output filenames and cat them out as base64 or text
+              // This relies on a small helper script injection
+              const outputScript = `
+                for f in /tmp/output.png /tmp/output.jpg /tmp/output.svg /tmp/output.html /tmp/output.json; do
+                  if [ -f "$f" ]; then
+                    echo "---START-$f---"
+                    cat "$f" | base64
+                    echo "---END-$f---"
+                    rm "$f"
+                  fi
+                done
+              `;
               
-              if (imgData.replace(/\s/g, '').length > 20) {
-                 socket.emit('output', { stream: 'stdout', data: `data:image/png;base64,${imgData.replace(/\s/g, '')}` });
+              const outExec = await container.exec({ Cmd: ['sh', '-c', outputScript], AttachStdout: true });
+              const outStream = await outExec.start();
+              let outData = '';
+              container.modem.demuxStream(outStream, { write: c => outData += c.toString() }, { write: () => {} });
+              
+              // Parse the manual output stream from container
+              const regex = /---START-(.*?)---([\s\S]*?)---END-.*?---/g;
+              let match;
+              while ((match = regex.exec(outData)) !== null) {
+                  const filename = match[1];
+                  const contentB64 = match[2].trim();
+                  let mime = 'text/plain';
+                  if (filename.endsWith('.png')) mime = 'image/png';
+                  if (filename.endsWith('.jpg')) mime = 'image/jpeg';
+                  if (filename.endsWith('.svg')) mime = 'image/svg+xml';
+                  if (filename.endsWith('.html')) mime = 'text/html';
+                  if (filename.endsWith('.json')) mime = 'application/json';
+
+                  if (mime.startsWith('image/')) {
+                      socket.emit('output', { stream: 'stdout', data: `data:${mime};base64,${contentB64}` });
+                  } else {
+                      // Decode text types
+                      const text = Buffer.from(contentB64, 'base64').toString('utf-8');
+                      socket.emit('output', { stream: 'stdout', data: text });
+                  }
               }
 
               socket.emit('exit', inspect.ExitCode);
               await container.exec({ Cmd:['rm',containerPath] }).then(e=>e.start({}));
             }
-          } catch { clearInterval(checkExit); }
+          } catch (e) { 
+              clearInterval(checkExit); 
+              console.error("Docker Check Error", e);
+          }
         }, 200);
 
       } catch (err) { socket.emit('error', 'Docker Exec Error: '+err.message); }
 
     } else {
+      // Local Execution Fallback
       try {
         fs.writeFileSync(filePath, code);
         let cmd = session.cmd || 'node';
         let args = [filePath];
+        
+        // Handle custom entry commands (like 'npx tsx')
         if (entryCommand) {
           if (entryCommand.includes('/tmp/code')) {
             cmd = 'sh';
@@ -197,18 +258,13 @@ io.on('connection', (socket) => {
             args = [...parts.slice(1), filePath];
           }
         }
+        
         const child = spawn(cmd, args, { cwd: tempDir, env:{...process.env, MPLBACKEND:'Agg'} });
         session.process = child;
         child.stdout.on('data', d=>socket.emit('output',{stream:'stdout',data:d.toString()}));
         child.stderr.on('data', d=>socket.emit('output',{stream:'stderr',data:d.toString()}));
         child.on('close', code=>{
-          const possibleOut = path.join(tempDir,'output.png');
-          if (fs.existsSync(possibleOut)) {
-            const img = fs.readFileSync(possibleOut,'base64');
-            socket.emit('output',{stream:'stdout',data:`data:image/png;base64,${img}`});
-            fs.unlinkSync(possibleOut);
-          }
-          fs.unlinkSync(filePath);
+          checkAndEmitOutputs(socket, tempDir, [filePath]);
           socket.emit('exit', code);
         });
         child.on('error', err=>socket.emit('error','Spawn Error: '+err.message));

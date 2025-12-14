@@ -35,7 +35,7 @@ export const LANGUAGES: Language[] = [
     prismId: 'typescript', 
     interpreters: [
       { id: 'ts-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates TypeScript execution with type checking logic.' },
-      { id: 'ts-docker', name: 'TypeScript Container', type: 'docker', version: '5.2', description: 'Compiles and runs TypeScript in Docker.', dockerImage: 'mhart/alpine-node:16', extension: 'ts', entryCommand: 'npx ts-node' }
+      { id: 'ts-docker', name: 'TypeScript Container', type: 'docker', version: '5.2', description: 'Runs TypeScript directly via tsx (ESM supported).', dockerImage: 'node:20-alpine', extension: 'ts', entryCommand: 'npx -y tsx' }
     ]
   },
   { 
