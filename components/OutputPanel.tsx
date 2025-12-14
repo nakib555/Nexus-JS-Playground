@@ -37,6 +37,14 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
                 </div>
             );
         }
+        // Detect HTML-like strings
+        if ((value.startsWith('<') && value.endsWith('>')) || value.trim().startsWith('<!DOCTYPE') || value.trim().startsWith('<svg')) {
+             return (
+                 <div className="mt-2 mb-2 p-2 bg-white dark:bg-black/20 rounded border border-gray-200 dark:border-white/10 overflow-auto">
+                     <div dangerouslySetInnerHTML={{ __html: value }} />
+                 </div>
+             );
+        }
         return <span className="text-orange-600 dark:text-orange-300 break-all whitespace-pre-wrap">"{value}"</span>;
       case 'number':
         return <span className="text-blue-600 dark:text-cyan-300 font-bold">{value}</span>;
@@ -200,7 +208,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
             ) : (
               <div className="flex flex-col min-h-full py-2">
                 {logs.map((log) => (
-                  <div key={log.id} className={`flex gap-3 px-4 py-1.5 border-l-2 border-transparent hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group items-start ${log.type === LogType.ERROR ? 'border-l-red-500 bg-red-50 dark:bg-red-500/5' : ''} ${log.type === LogType.WARN ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-500/5' : ''} ${log.type === LogType.SUCCESS ? 'border-l-green-500 bg-green-50 dark:bg-green-500/5' : ''}`}>
+                  <div key={log.id} className={`flex gap-3 px-4 py-1.5 border-l-2 border-transparent hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group items-start ${log.type === LogType.ERROR ? 'border-l-red-500 bg-red-50 dark:bg-red-500/5' : ''} ${log.type === LogType.WARN ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-500/5' : ''} ${log.type === LogType.SUCCESS ? 'border-l-green-500 bg-green-50 dark:bg-green-500/5' : ''} ${log.type === LogType.INFO ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-500/5' : ''}`}>
                     <span className="shrink-0 mt-0.5 opacity-60">
                       {log.type === LogType.ERROR && <AlertCircle className="w-3 h-3 text-red-500 dark:text-red-400" />}
                       {log.type === LogType.WARN && <AlertTriangle className="w-3 h-3 text-yellow-500 dark:text-yellow-400" />}

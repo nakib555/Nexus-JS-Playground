@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server, Cpu } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
@@ -273,6 +273,20 @@ const App: React.FC = () => {
     );
   }
 
+  // Determine indicator color and icon
+  const getStatusColor = () => {
+      if (backendStatus.includes('Error') || backendStatus.includes('Failed')) return 'text-red-500';
+      if (backendStatus.includes('Connecting') || backendStatus.includes('Booting')) return 'text-amber-500 animate-pulse';
+      if (backendStatus.includes('Container') || backendStatus.includes('Docker')) return 'text-emerald-500'; // Docker
+      if (backendStatus.includes('Local')) return 'text-blue-500'; // Local
+      return 'text-gray-500';
+  };
+  
+  const getStatusIcon = () => {
+      if (backendStatus.includes('Local')) return <Cpu size={12} className={getStatusColor()} />;
+      return <Container size={12} className={getStatusColor()} />;
+  };
+
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col text-gray-900 dark:text-white font-sans overflow-hidden bg-white dark:bg-[#0A0A0A] selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white">
       <AIAssistant isOpen={isAIModalOpen} onClose={() => setIsAIModalOpen(false)} onCodeGenerated={handleCodeGenerated} />
@@ -289,11 +303,11 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Backend Status Indicator */}
+        {/* Backend Status Indicator - Explicit Check */}
         {selectedInterpreter.type === 'docker' && (
-             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 cursor-pointer hover:bg-gray-200 dark:hover:bg-white/10 transition-colors" onClick={() => setIsSettingsOpen(true)}>
-                <Container size={12} className={backendStatus.includes('Ready') ? 'text-emerald-500' : (backendStatus.includes('Error') ? 'text-red-500' : 'text-amber-500 animate-pulse')} />
-                <span className="text-[10px] font-mono text-gray-600 dark:text-gray-300">{backendStatus || 'Disconnected'}</span>
+             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 cursor-pointer hover:bg-gray-200 dark:hover:bg-white/10 transition-colors group" onClick={() => setIsSettingsOpen(true)}>
+                {getStatusIcon()}
+                <span className={`text-[10px] font-mono ${getStatusColor().split(' ')[0]}`}>{backendStatus || 'Disconnected'}</span>
              </div>
         )}
         {selectedInterpreter.type === 'ai' && (

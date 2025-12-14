@@ -93,6 +93,12 @@ const cleanupSession = async (socketId) => {
 io.on('connection', (socket) => {
   console.log(`[${socket.id}] Client connected`);
 
+  // Emit capabilities immediately
+  socket.emit('system-status', { 
+    dockerAvailable: HAS_DOCKER && !!docker, 
+    mode: (HAS_DOCKER && !!docker) ? 'docker' : 'local' 
+  });
+
   // 1. Initialize Session
   socket.on('init-session', async ({ language, image }) => {
     try {
