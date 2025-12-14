@@ -128,15 +128,22 @@ if (typeof document !== 'undefined') {
 </script>
 `,
   python: `# Python Code
-# Try the AI Simulator or Docker Container!
-
 import random
 
 # Calculate squares
 data = [x**2 for x in range(10)]
 print("Squares:", data)
-
 print("Random number:", random.randint(1, 100))
+
+# VISUALIZATION EXAMPLE:
+# To generate a plot, simply save it to '/tmp/output.png'
+# The environment will automatically display it.
+#
+# import matplotlib.pyplot as plt
+# plt.plot(data)
+# plt.title("Sample Plot")
+# plt.savefig('/tmp/output.png')
+# print("Plot generated!")
 `,
   typescript: `interface User {
   id: number;

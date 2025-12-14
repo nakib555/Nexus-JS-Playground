@@ -164,6 +164,37 @@ io.on('connection', (socket) => {
             const inspect = await exec.inspect();
             if (!inspect.Running) {
                 clearInterval(checkExit);
+
+                // --- CHECK FOR GENERATED IMAGE OUTPUT (e.g. plots) ---
+                try {
+                    // Check for output.png, convert to base64, print to stdout, and delete
+                    const imgCmd = 'if [ -f /tmp/output.png ]; then base64 /tmp/output.png; rm /tmp/output.png; fi';
+                    const imgExec = await container.exec({
+                        Cmd: ['sh', '-c', imgCmd],
+                        AttachStdout: true,
+                        AttachStderr: true
+                    });
+                    
+                    const imgStream = await imgExec.start();
+                    let imgData = '';
+                    
+                    // Safely capture output
+                    container.modem.demuxStream(imgStream, {
+                        write: (chunk) => { imgData += chunk.toString(); }
+                    }, { write: () => {} });
+
+                    // Short wait for stream buffer
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    const cleaned = imgData.replace(/[\r\n\s]/g, '');
+                    if (cleaned.length > 20) {
+                        socket.emit('output', { stream: 'stdout', data: `data:image/png;base64,${cleaned}` });
+                    }
+                } catch (e) {
+                    // Ignore image errors
+                }
+                // -----------------------------------------------------
+
                 socket.emit('exit', inspect.ExitCode);
             }
           } catch(e) { 

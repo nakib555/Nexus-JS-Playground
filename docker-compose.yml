@@ -6,7 +6,15 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      # Bind mount Docker socket to allow spawning sibling containers
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PORT=3001
+
+  nexus-frontend:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:3001
+    depends_on:
+      - nexus-backend
