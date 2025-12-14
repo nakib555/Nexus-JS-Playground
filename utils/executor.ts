@@ -23,7 +23,7 @@ export const executeUserCode = (
   iframe.style.background = 'transparent'; 
   
   // Allow scripts, forms, same-origin (for communication), etc.
-  iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-forms allow-same-origin allow-popups allow-downloads');
+  iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-forms allow-same-origin allow-popups allow-downloads allow-pointer-lock');
   
   rootElement.appendChild(iframe);
 
@@ -39,30 +39,54 @@ export const executeUserCode = (
   const consoleInterceptor = `
     <script>
       (function() {
+        const serialize = (obj, seen = new WeakSet()) => {
+            if (obj === null || typeof obj !== 'object') return obj;
+            if (obj instanceof Error) return obj.toString();
+            if (obj instanceof RegExp) return obj.toString();
+            if (obj instanceof Date) return obj.toISOString();
+            
+            if (obj instanceof Element) {
+                // For elements, give a nice representation or just outerHTML if small
+                if (obj.outerHTML.length < 200) return obj.outerHTML;
+                return '[HTMLElement: ' + obj.tagName + ']';
+            }
+            
+            if (seen.has(obj)) return '[Circular]';
+            seen.add(obj);
+            
+            if (Array.isArray(obj)) {
+                return obj.map(v => serialize(v, seen));
+            }
+            
+            const copy = {};
+            for (const key in obj) {
+                try {
+                    copy[key] = serialize(obj[key], seen);
+                } catch (e) {
+                    copy[key] = '[Access Error]';
+                }
+            }
+            return copy;
+        };
+
         const sendLog = (type, args) => {
           try {
+             // We use a custom serializer to handle circular references and DOM nodes
+             // before sending to the parent. This ensures "any output" is viewable.
              const processedArgs = args.map(arg => {
-                if (arg instanceof Error) return arg.toString();
-                if (typeof arg === 'function') return arg.toString();
-                if (arg instanceof Promise) return '[object Promise]';
-                if (arg instanceof Date) return arg.toISOString();
-                
-                if (arg instanceof Element) {
-                    return arg.outerHTML.substring(0, 150) + (arg.outerHTML.length > 150 ? '...' : '');
-                }
-                
                 try {
-                  JSON.stringify(arg);
-                  return arg;
-                } catch (e) {
-                  return String(arg);
+                    return serialize(arg);
+                } catch(e) {
+                    return String(arg);
                 }
              });
              
              if (window.parent && window.parent['${logHandlerName}']) {
                 window.parent['${logHandlerName}'](type, processedArgs);
              }
-          } catch(e) { }
+          } catch(e) { 
+             console.error("Logger Error:", e);
+          }
         };
 
         const originalConsole = console;
@@ -72,6 +96,7 @@ export const executeUserCode = (
           error: (...args) => { originalConsole.error(...args); sendLog('error', args); },
           warn: (...args) => { originalConsole.warn(...args); sendLog('warn', args); },
           info: (...args) => { originalConsole.info(...args); sendLog('info', args); },
+          debug: (...args) => { originalConsole.debug(...args); sendLog('info', args); },
           table: (...args) => { originalConsole.table(...args); sendLog('info', args); },
           clear: () => { }
         };
@@ -92,17 +117,19 @@ export const executeUserCode = (
     </style>
   `;
 
+  // Extremely permissive CSP for playground usage
   const cspMeta = `
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; font-src data: https:; style-src 'self' 'unsafe-inline' https:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; img-src * data: blob:; font-src * data:;">
   `;
 
   let htmlContent = '';
 
   // Smart wrapping: Check if user provided a full HTML document
-  const trimmedCode = code.trim().toLowerCase();
-  const isFullPage = trimmedCode.startsWith('<!doctype html>') || trimmedCode.startsWith('<html');
+  const trimmedCode = code.trim();
+  const lowerCode = trimmedCode.toLowerCase();
+  const isFullPage = lowerCode.startsWith('<!doctype html>') || lowerCode.startsWith('<html');
 
   if (isFullPage) {
     // If full page, inject interceptor into head
@@ -114,8 +141,11 @@ export const executeUserCode = (
   } else {
     // Partial content (e.g. just an SVG, or just JS)
     
-    if (languageId === 'html' || trimmedCode.startsWith('<svg') || trimmedCode.startsWith('<div')) {
-        // Wrap partial visual content in a centering container for better presentation
+    // Check if it looks like HTML or plain JS
+    const isHtmlLike = languageId === 'html' || lowerCode.startsWith('<svg') || lowerCode.startsWith('<div') || lowerCode.startsWith('<style');
+    
+    if (isHtmlLike) {
+        // Wrap partial visual content
         htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -125,7 +155,7 @@ export const executeUserCode = (
                 <style>
                     body { 
                         margin: 0; 
-                        height: 100vh; 
+                        min-height: 100vh; 
                         display: flex; 
                         flex-direction: column; 
                         align-items: center; 
@@ -133,7 +163,6 @@ export const executeUserCode = (
                         background: transparent;
                         font-family: 'Inter', system-ui, sans-serif;
                     }
-                    /* Ensure SVGs scale nicely */
                     svg { max-width: 90vw; max-height: 90vh; }
                 </style>
             </head>
@@ -141,12 +170,12 @@ export const executeUserCode = (
         </html>`;
     } else {
         // Pure JavaScript Mode
+        // We create a container structure so the user can easily attach things to document.body
         const isLibraryMode = interpreterId === 'js-libs';
         let importMapScript = '';
         let scriptTagOpen = '<script>';
 
         if (isLibraryMode) {
-            // ... (import logic kept for legacy browser runs) ...
             scriptTagOpen = '<script type="module">';
         }
 
@@ -158,7 +187,17 @@ export const executeUserCode = (
                ${consoleInterceptor}
                ${importMapScript}
                <style>
-                 body { margin: 0; overflow: auto; background: transparent; color: inherit; font-family: 'Inter', sans-serif; }
+                 body { 
+                   margin: 0; 
+                   padding: 20px;
+                   overflow: auto; 
+                   background: transparent; 
+                   color: inherit; 
+                   font-family: 'Inter', sans-serif; 
+                   width: 100vw;
+                   height: 100vh;
+                   box-sizing: border-box;
+                 }
                </style>
             </head>
             <body>
