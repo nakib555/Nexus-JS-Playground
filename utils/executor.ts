@@ -106,27 +106,31 @@ export const executeUserCode = (
     </style>
   `;
 
+  // Default Head content with CSP
+  const headContent = `
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:;">
+    ${consoleInterceptor}
+  `;
+
   let htmlContent = '';
 
   if (languageId === 'html') {
     // HTML Mode: Inject interceptor and then the raw user code
-    htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          ${consoleInterceptor}
-          <style>
-             body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-             /* Scrollbar styling to match app theme loosely */
-             ::-webkit-scrollbar { width: 6px; height: 6px; }
-             ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
-          </style>
-        </head>
-        <body>
-          ${code}
-        </body>
-      </html>
-    `;
+    // We try to inject the interceptor in the head if possible, otherwise prepend
+    if (code.includes('<head>')) {
+        htmlContent = code.replace('<head>', `<head>${headContent}`);
+    } else if (code.includes('<html>')) {
+        htmlContent = code.replace('<html>', `<html><head>${headContent}</head>`);
+    } else {
+        htmlContent = `
+        <!DOCTYPE html>
+        <html>
+            <head>${headContent}</head>
+            <body>${code}</body>
+        </html>`;
+    }
   } else {
     // JavaScript Mode
     
@@ -170,7 +174,7 @@ export const executeUserCode = (
       <!DOCTYPE html>
       <html>
         <head>
-           ${consoleInterceptor}
+           ${headContent}
            ${importMapScript}
            <style>
              body { margin: 0; overflow: auto; background: transparent; color: inherit; font-family: 'Inter', sans-serif; }

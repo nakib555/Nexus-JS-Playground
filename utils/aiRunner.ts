@@ -18,50 +18,36 @@ export const executeWithAI = async (
     // Using Pro model for complex reasoning and code simulation
     const model = 'gemini-3-pro-preview';
     
-    onLog(LogType.INFO, [`[${languageName}] Initializing ${interpreter.name}...`]);
-
-    const isLibraryMode = interpreter.id.endsWith('-libs') || 
-                         interpreter.id.includes('ui') ||
-                         interpreter.id.includes('gfx') ||
-                         interpreter.id.includes('full') ||
-                         interpreter.id.includes('web') ||
-                         interpreter.description.toLowerCase().includes('library');
+    onLog(LogType.INFO, [`[${languageName}] Initializing AI Simulator...`]);
 
     const prompt = `
-    You are an advanced universal code execution engine. 
-    User provided code in language: ${languageName} (${interpreter.name}).
+    You are an advanced universal code execution engine designed to act as a flawless interpreter for any programming language.
     
-    Your task:
-    1. Act as the compiler/interpreter for this language.
-    2. Simulate the execution of the code provided below with 100% accuracy.
-    3. Return the output of the code.
+    CONTEXT:
+    - User Language: ${languageName}
+    - Environment: AI Simulation (${interpreter.name})
     
-    CAPABILITIES:
-    - You handle ANY language (Python, Javascript, C++, Java, Go, Rust, Pseudocode, Bash, SQL, etc.).
-    - You simulate STANDARD libraries (e.g., Python Turtle, Java Swing, C++ IO, Math libs).
-    - You simulate EXTERNAL libraries (e.g., NumPy, React, Three.js, Gtk, SDL) if the code uses them, even if not explicitly installed.
+    TASK:
+    1. Simulate the execution of the provided code with 100% logical accuracy.
+    2. Support standard libraries and non-library based logic (algorithms, math, string manipulation) natively.
+    3. If the code implies visualization (charts, graphs, GUI windows, images, DOM manipulation), you MUST generate the Output as HTML/SVG/Canvas.
     
-    OUTPUT FORMATTING:
-    - Text Output: Return the raw text stdout.
-    - Visual Output: If the code creates ANY visual content (plot, image, UI, diagram, dashboard), you MUST generate the raw HTML/SVG representation of that output.
-      - For plots (Python/R/Matlab): Generate SVG.
-      - For GUI apps (Java Swing/C# WPF/C++ Qt): Generate a faithful HTML/CSS representation of the window.
-      - For Web (HTML/JS/PHP): Render the resulting HTML.
-      - For Graphics (OpenGL/SDL): Render the frame as SVG or Canvas logic.
-    - Mixed Output: If code produces BOTH text and visual:
-      1. Text Output
-      2. "@@@NEXUS_VISUAL_BREAK@@@"
-      3. Visual Output (HTML/SVG)
+    OUTPUT MODES:
+    - MODE A (Text Only): If the code only prints text, return the raw stdout.
+    - MODE B (Visual Only): If the code produces a plot/chart/image (e.g., matplotlib.show(), Swing JFrame, Turtle graphics), return a COMPLETE, self-contained HTML/SVG string representing that result.
+    - MODE C (Mixed): If code produces text AND visuals, format as:
+      [Text Output Here]
+      @@@NEXUS_VISUAL_BREAK@@@
+      [HTML/SVG Output Here]
     
-    ERROR HANDLING:
-    - If there is a syntax or runtime error, return the error message exactly as the interpreter would.
-
     RULES:
-    - Do NOT wrap output in markdown code blocks (no \`\`\` wrappers) unless it's part of the program's output.
-    - Do NOT add conversational filler ("Here is the output...").
-    - Just the raw execution result.
+    - Do NOT wrap output in markdown (\`\`\`) unless the program itself prints markdown.
+    - Do NOT explain the code. EXECUTE it.
+    - If there is a syntax error, simulate the compiler error message exactly.
+    - For plotting (Python matplotlib, R, etc.), generate an SVG of the plot.
+    - For UI code (Java Swing, C++ Qt), generate an HTML representation of the window.
     
-    Code to execute:
+    CODE TO EXECUTE:
     ${code}
     `;
 
@@ -78,10 +64,9 @@ export const executeWithAI = async (
 
     let output = response.text || '';
     
-    // Clean up markdown code blocks if the model accidentally adds them for the whole response
-    // We only remove if it wraps the ENTIRE response to avoid breaking valid code output.
+    // Clean up outer markdown blocks if they exist (common model behavior)
     if (output.startsWith('```') && output.endsWith('```')) {
-         output = output.replace(/^```(html|xml|svg|text)?/, '').replace(/```$/, '').trim();
+         output = output.replace(/^```(html|xml|svg|text|json)?/, '').replace(/```$/, '').trim();
     }
 
     if (output) {
@@ -105,15 +90,16 @@ export const executeWithAI = async (
         (lowerOut.startsWith('<') && lowerOut.endsWith('>')) || 
         lowerOut.includes('<!doctype html>') || 
         lowerOut.includes('<svg') ||
-        lowerOut.includes('<html')
+        lowerOut.trim().startsWith('<html')
       );
 
       if (isVisual) {
          if (onVisual) {
             onVisual(output);
          } else {
-             onLog(LogType.SUCCESS, ['(Visual Output Detected)']);
-             onLog(LogType.INFO, [output]);
+             onLog(LogType.SUCCESS, ['(Visual Output Generated)']);
+             // Still log partial text if it looks mixed
+             if (output.length < 500) onLog(LogType.INFO, [output]);
          }
       } 
       // Check for Error patterns
