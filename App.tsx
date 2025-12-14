@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
 import { LanguageSelector } from './components/LanguageSelector';
 import { CommandPalette } from './components/CommandPalette';
+import { SettingsModal } from './components/SettingsModal';
 import { LANGUAGE_TEMPLATES } from './constants';
 import { LogEntry, LogType, Language, Interpreter, Command as CommandType } from './types';
 import { executeUserCode } from './utils/executor';
@@ -40,6 +41,7 @@ const App: React.FC = () => {
 
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
   
@@ -67,7 +69,6 @@ const App: React.FC = () => {
 
     return () => {
         // Cleanup Docker Session on unmount or change
-        // This ensures containers are destroyed when the component unmounts or interpreter changes
         if (selectedInterpreter?.type === 'docker') {
             dockerClient.disconnect();
             setBackendStatus('');
@@ -86,7 +87,6 @@ const App: React.FC = () => {
   };
 
   const handleBackToSelection = () => {
-    // Explicitly disconnect if it was a docker session to trigger backend cleanup
     if (selectedInterpreter?.type === 'docker') {
       dockerClient.disconnect();
     }
@@ -154,7 +154,6 @@ const App: React.FC = () => {
           (htmlContent) => {
              const rootEl = getVisualRoot();
              if (rootEl) {
-                // Reuse executor to render HTML content safely in the sandbox iframe
                 executeUserCode(htmlContent, rootEl, addLog, 'html');
              }
           },
@@ -164,9 +163,8 @@ const App: React.FC = () => {
         return;
     }
 
-    // DOCKER BACKEND EXECUTION
+    // DOCKER/LOCAL BACKEND EXECUTION
     if (selectedInterpreter.type === 'docker') {
-        // No wait time needed usually, but good for UI feedback
         await new Promise(r => setTimeout(r, 100));
         dockerClient.runCode(
             code, 
@@ -213,7 +211,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isLiveMode || !selectedInterpreter) return;
-    // Don't auto-run docker/AI repeatedly, only browser JS
     if (selectedInterpreter.type === 'docker' || selectedInterpreter.type === 'ai') return;
 
     const delay = 800;
@@ -242,7 +239,6 @@ const App: React.FC = () => {
     }, 100);
   };
   
-  // Command Palette integration
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
@@ -259,6 +255,7 @@ const App: React.FC = () => {
     { id: 'ai', name: 'AI Assistant', onSelect: () => setIsAIModalOpen(true), icon: <Sparkles size={16}/>, section: 'Actions' },
     { id: 'reset', name: 'Reset Code', onSelect: handleReset, icon: <RotateCcw size={16}/>, section: 'Actions' },
     { id: 'clear', name: 'Clear Console', onSelect: handleClearLogs, icon: <Terminal size={16}/>, section: 'Actions' },
+    { id: 'settings', name: 'Connection Settings', onSelect: () => setIsSettingsOpen(true), icon: <Server size={16}/>, section: 'General' },
     { id: 'lang', name: 'Change Language', onSelect: handleBackToSelection, icon: <Settings2 size={16}/>, section: 'Navigation' },
     { id: 'theme', name: 'Toggle Theme', onSelect: toggleTheme, icon: theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>, section: 'General' },
   ];
@@ -266,8 +263,12 @@ const App: React.FC = () => {
   if (!selectedLanguage || !selectedInterpreter) {
     return (
       <>
-        <div className="fixed top-4 right-4 z-[110]"><button onClick={toggleTheme} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors">{theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button></div>
+        <div className="fixed top-4 right-4 z-[110] flex gap-2">
+            <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors"><Server size={20} /></button>
+            <button onClick={toggleTheme} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors">{theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button>
+        </div>
         <LanguageSelector onSelect={handleLanguageSelect} />
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       </>
     );
   }
@@ -276,6 +277,7 @@ const App: React.FC = () => {
     <div className="fixed inset-0 w-full h-full flex flex-col text-gray-900 dark:text-white font-sans overflow-hidden bg-white dark:bg-[#0A0A0A] selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white">
       <AIAssistant isOpen={isAIModalOpen} onClose={() => setIsAIModalOpen(false)} onCodeGenerated={handleCodeGenerated} />
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       <header className="shrink-0 h-12 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl flex items-center justify-between px-3 z-50 transition-colors">
         <div className="flex items-center gap-2">
@@ -289,8 +291,8 @@ const App: React.FC = () => {
 
         {/* Backend Status Indicator */}
         {selectedInterpreter.type === 'docker' && (
-             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5">
-                <Container size={12} className={backendStatus.includes('Ready') ? 'text-emerald-500' : 'text-amber-500 animate-pulse'} />
+             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 cursor-pointer hover:bg-gray-200 dark:hover:bg-white/10 transition-colors" onClick={() => setIsSettingsOpen(true)}>
+                <Container size={12} className={backendStatus.includes('Ready') ? 'text-emerald-500' : (backendStatus.includes('Error') ? 'text-red-500' : 'text-amber-500 animate-pulse')} />
                 <span className="text-[10px] font-mono text-gray-600 dark:text-gray-300">{backendStatus || 'Disconnected'}</span>
              </div>
         )}
