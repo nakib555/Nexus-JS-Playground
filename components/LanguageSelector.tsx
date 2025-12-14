@@ -12,12 +12,6 @@ interface LanguageSelectorProps {
 }
 
 const LANGUAGE_CONFIG: Record<string, { icon: React.ElementType, color: string, gradient: string, description: string }> = {
-  universal: { 
-    icon: Sparkles, 
-    color: 'text-fuchsia-500', 
-    gradient: 'from-fuchsia-500/20 to-purple-600/20',
-    description: 'Universal AI Runner for Pseudocode & Algorithms' 
-  },
   javascript: { 
     icon: Braces, 
     color: 'text-yellow-400', 
@@ -195,12 +189,6 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onSelect }) 
                           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-black/20 border border-gray-200 dark:border-white/5 backdrop-blur-sm">
                              <Monitor className="w-3 h-3 text-emerald-500" />
                              <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300">Browser</span>
-                          </div>
-                        )}
-                        {lang.interpreters.some(i => i.type === 'cloud') && (
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-black/20 border border-gray-200 dark:border-white/5 backdrop-blur-sm">
-                             <Cloud className="w-3 h-3 text-blue-500" />
-                             <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300">Cloud</span>
                           </div>
                         )}
                       </div>

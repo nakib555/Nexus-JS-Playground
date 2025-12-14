@@ -27,7 +27,7 @@ export interface ExecutionContext {
   root: HTMLElement | null;
 }
 
-export type ExecutionMode = 'browser' | 'cloud' | 'docker';
+export type ExecutionMode = 'browser' | 'docker' | 'ai';
 
 export interface Interpreter {
   id: string;

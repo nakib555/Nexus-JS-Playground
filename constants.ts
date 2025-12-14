@@ -2,20 +2,12 @@ import { Language } from './types';
 
 export const LANGUAGES: Language[] = [
   { 
-    id: 'universal', 
-    name: 'Universal / Pseudocode', 
-    prismId: 'markdown', 
-    interpreters: [
-      { id: 'uni-ai', name: 'Universal AI Runner', type: 'cloud', version: 'Latest', description: 'Executes any code, pseudocode, or algorithms via LLM simulation.' }
-    ]
-  },
-  { 
     id: 'javascript', 
     name: 'JavaScript', 
     prismId: 'javascript', 
     interpreters: [
       { id: 'js-v8', name: 'Browser Runtime', type: 'browser', version: 'ESNext', description: 'Executes locally in the browser. Supports DOM and Web APIs.' },
-      { id: 'js-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates execution via AI (Visuals supported).' },
+      { id: 'js-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates execution logic via AI.' },
       { id: 'js-node', name: 'Node.js Container', type: 'docker', version: 'Node 20', description: 'Real Node.js 20 environment running in Docker.', dockerImage: 'node:20-alpine', extension: 'js', entryCommand: 'node' }
     ]
   },
@@ -25,7 +17,7 @@ export const LANGUAGES: Language[] = [
     prismId: 'markup', 
     interpreters: [
       { id: 'html-browser', name: 'Browser Renderer', type: 'browser', version: 'HTML5', description: 'Renders HTML/CSS/JS directly in the sandbox.' },
-      { id: 'html-ai', name: 'AI Renderer', type: 'cloud', version: 'Latest', description: 'Generates UI/Layouts via AI.' }
+      { id: 'html-ai', name: 'AI Preview', type: 'ai', version: 'Gemini 3.0', description: 'Generates and improves HTML layouts via AI.' }
     ]
   },
   { 
@@ -33,7 +25,7 @@ export const LANGUAGES: Language[] = [
     name: 'Python', 
     prismId: 'python', 
     interpreters: [
-      { id: 'py-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates Python execution. Supports visualization (matplotlib, etc).' },
+      { id: 'py-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates execution via AI. Supports standard libraries & plots.' },
       { id: 'py-docker', name: 'Python Container', type: 'docker', version: '3.11', description: 'Real Python 3.11 environment in Docker.', dockerImage: 'python:3.11-alpine', extension: 'py', entryCommand: 'python3' }
     ]
   },
@@ -42,7 +34,7 @@ export const LANGUAGES: Language[] = [
     name: 'TypeScript', 
     prismId: 'typescript', 
     interpreters: [
-      { id: 'ts-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates TypeScript execution.' },
+      { id: 'ts-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates TypeScript execution via AI.' },
       { id: 'ts-docker', name: 'TypeScript Container', type: 'docker', version: '5.2', description: 'Compiles and runs TypeScript in Docker.', dockerImage: 'mhart/alpine-node:16', extension: 'ts', entryCommand: 'npx ts-node' }
     ]
   },
@@ -51,7 +43,7 @@ export const LANGUAGES: Language[] = [
     name: 'Go', 
     prismId: 'go', 
     interpreters: [
-      { id: 'go-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates Go execution.' },
+      { id: 'go-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Go execution via AI.' },
       { id: 'go-docker', name: 'Go Container', type: 'docker', version: '1.21', description: 'Go 1.21 environment.', dockerImage: 'golang:1.21-alpine', extension: 'go', entryCommand: 'go run' }
     ]
   },
@@ -60,7 +52,7 @@ export const LANGUAGES: Language[] = [
     name: 'Rust', 
     prismId: 'rust', 
     interpreters: [
-      { id: 'rust-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates Rust execution.' },
+      { id: 'rust-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Rust execution via AI.' },
       { id: 'rust-docker', name: 'Rust Container', type: 'docker', version: '1.75', description: 'Compiles and runs Rust code.', dockerImage: 'rust:alpine', extension: 'rs', entryCommand: 'rust-script' }
     ]
   },
@@ -69,7 +61,7 @@ export const LANGUAGES: Language[] = [
     name: 'C++', 
     prismId: 'cpp', 
     interpreters: [
-      { id: 'cpp-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates C++ execution.' },
+      { id: 'cpp-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates C++ execution via AI.' },
       { id: 'cpp-docker', name: 'GCC Container', type: 'docker', version: 'GCC 12', description: 'Compiles using g++ and executes.', dockerImage: 'frolvlad/alpine-gxx', extension: 'cpp', entryCommand: 'g++ -o /tmp/app /tmp/code.cpp && /tmp/app' }
     ]
   },
@@ -78,7 +70,7 @@ export const LANGUAGES: Language[] = [
     name: 'Java', 
     prismId: 'java', 
     interpreters: [
-      { id: 'java-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates Java execution.' },
+      { id: 'java-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Java execution via AI.' },
       { id: 'java-docker', name: 'OpenJDK Container', type: 'docker', version: '21', description: 'OpenJDK 21 environment.', dockerImage: 'openjdk:21-slim', extension: 'java', entryCommand: 'java' }
     ]
   },
@@ -87,7 +79,7 @@ export const LANGUAGES: Language[] = [
     name: 'Ruby', 
     prismId: 'ruby', 
     interpreters: [
-      { id: 'ruby-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates Ruby execution.' },
+      { id: 'ruby-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Ruby execution via AI.' },
       { id: 'ruby-docker', name: 'Ruby Container', type: 'docker', version: '3.2', description: 'Ruby 3.2 environment.', dockerImage: 'ruby:3.2-alpine', extension: 'rb', entryCommand: 'ruby' }
     ]
   },
@@ -96,7 +88,7 @@ export const LANGUAGES: Language[] = [
     name: 'PHP', 
     prismId: 'php', 
     interpreters: [
-      { id: 'php-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates PHP execution.' },
+      { id: 'php-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates PHP execution via AI.' },
       { id: 'php-docker', name: 'PHP CLI', type: 'docker', version: '8.2', description: 'PHP 8.2 CLI environment.', dockerImage: 'php:8.2-cli-alpine', extension: 'php', entryCommand: 'php' }
     ]
   },
@@ -105,28 +97,23 @@ export const LANGUAGES: Language[] = [
     name: 'Bash', 
     prismId: 'bash', 
     interpreters: [
-      { id: 'bash-ai', name: 'AI Simulator', type: 'cloud', version: 'Latest', description: 'Simulates Bash execution.' },
+      { id: 'bash-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Bash execution via AI.' },
       { id: 'bash-docker', name: 'Shell Container', type: 'docker', version: 'Alpine', description: 'Alpine Linux Shell.', dockerImage: 'alpine:latest', extension: 'sh', entryCommand: 'sh' }
     ]
   }
 ];
 
 export const LANGUAGE_TEMPLATES: Record<string, string> = {
-  universal: `// Universal AI Mode
-// Describe what you want to calculate or visualize.
-// The AI will interpret this and generate output.
-
-Sort a list of 20 random numbers and plot them as a bar chart.
-`,
   javascript: `console.log("Hello from JavaScript!");
 const data = [10, 25, 40, 35, 20];
 console.log("Data:", data);
 
-// If using Browser Runtime, this works:
+// Browser Runtime supports DOM APIs:
 if (typeof document !== 'undefined') {
   const div = document.createElement('div');
   div.innerText = "DOM Manipulation Works!";
   div.style.color = 'salmon';
+  div.style.marginTop = '10px';
   document.body.appendChild(div);
 }
 `,
@@ -140,9 +127,8 @@ if (typeof document !== 'undefined') {
   console.log("Inline script working");
 </script>
 `,
-  python: `# Python Mode
-# Use AI Simulator to run without installation
-# Use Docker for exact environment
+  python: `# Python Code
+# Try the AI Simulator or Docker Container!
 
 import random
 
@@ -150,11 +136,7 @@ import random
 data = [x**2 for x in range(10)]
 print("Squares:", data)
 
-# Visualization (Works in AI Simulator)
-# import matplotlib.pyplot as plt
-# plt.plot(data)
-# plt.title("Square Numbers")
-# plt.show()
+print("Random number:", random.randint(1, 100))
 `,
   typescript: `interface User {
   id: number;

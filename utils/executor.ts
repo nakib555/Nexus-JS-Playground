@@ -110,7 +110,7 @@ export const executeUserCode = (
   const headContent = `
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; font-src data: https:; style-src 'self' 'unsafe-inline' https:;">
     ${consoleInterceptor}
   `;
 

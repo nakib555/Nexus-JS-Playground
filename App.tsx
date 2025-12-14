@@ -8,8 +8,8 @@ import { CommandPalette } from './components/CommandPalette';
 import { LANGUAGE_TEMPLATES } from './constants';
 import { LogEntry, LogType, Language, Interpreter, Command as CommandType } from './types';
 import { executeUserCode } from './utils/executor';
-import { executeWithAI } from './utils/aiRunner';
 import { dockerClient } from './utils/dockerClient';
+import { executeWithAI } from './utils/aiRunner';
 
 type MobileTab = 'editor' | 'preview' | 'console';
 type Theme = 'dark' | 'light';
@@ -144,6 +144,26 @@ const App: React.FC = () => {
     setIsRunning(true);
     handleClearLogs();
 
+    // AI SIMULATION
+    if (selectedInterpreter.type === 'ai') {
+        await executeWithAI(
+          code,
+          selectedLanguage.name,
+          selectedInterpreter,
+          addLog,
+          (htmlContent) => {
+             const rootEl = getVisualRoot();
+             if (rootEl) {
+                // Reuse executor to render HTML content safely in the sandbox iframe
+                executeUserCode(htmlContent, rootEl, addLog, 'html');
+             }
+          },
+          signal
+        );
+        setIsRunning(false);
+        return;
+    }
+
     // DOCKER BACKEND EXECUTION
     if (selectedInterpreter.type === 'docker') {
         // No wait time needed usually, but good for UI feedback
@@ -171,32 +191,7 @@ const App: React.FC = () => {
       }, 50);
       return;
     } 
-    
-    // CLOUD / AI SIMULATION
-    else {
-      const rootEl = getVisualRoot();
-      if (rootEl) rootEl.innerHTML = '';
-      
-      const handleVisualOutput = (htmlContent: string) => {
-        if (signal.aborted) return;
-        const currentRoot = getVisualRoot();
-        if (currentRoot) {
-          currentRoot.innerHTML = '';
-          const iframe = document.createElement('iframe');
-          Object.assign(iframe.style, { width: '100%', height: '100%', border: 'none', background: 'transparent' });
-          iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin');
-          currentRoot.appendChild(iframe);
-          iframe.srcdoc = htmlContent;
-          if (window.innerWidth < 768 && !isLiveMode) setMobileActiveTab('preview');
-        }
-      };
-      try {
-        await executeWithAI(code, selectedLanguage.name, selectedInterpreter, addLog, handleVisualOutput, signal);
-      } catch (e) {} finally {
-        if (!signal.aborted) setIsRunning(false);
-      }
-    }
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, isLiveMode, getVisualRoot]);
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot]);
 
   const toggleRun = useCallback(() => {
     if (isLiveMode) {
@@ -209,7 +204,7 @@ const App: React.FC = () => {
       if (window.innerWidth < 768) setMobileActiveTab('editor');
     } else {
       if (window.innerWidth < 768) {
-        setMobileActiveTab(selectedInterpreter?.type === 'browser' ? 'preview' : 'console');
+        setMobileActiveTab(selectedInterpreter?.type === 'browser' || selectedInterpreter?.type === 'ai' ? 'preview' : 'console');
       }
       setIsLiveMode(true);
       handleRun();
@@ -218,10 +213,10 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isLiveMode || !selectedInterpreter) return;
-    // Don't auto-run docker repeatedly, only browser/sim modes
-    if (selectedInterpreter.type === 'docker') return;
+    // Don't auto-run docker/AI repeatedly, only browser JS
+    if (selectedInterpreter.type === 'docker' || selectedInterpreter.type === 'ai') return;
 
-    const delay = selectedInterpreter.type === 'browser' ? 800 : 2500;
+    const delay = 800;
     const timer = setTimeout(() => { if (!isRunningRef.current) handleRun() }, delay);
     return () => clearTimeout(timer);
   }, [code, isLiveMode, selectedInterpreter, handleRun]);
@@ -239,7 +234,7 @@ const App: React.FC = () => {
   const handleCodeGenerated = (newCode: string) => {
     setCode(newCode);
     setTimeout(() => {
-       if (window.innerWidth < 768) setMobileActiveTab(selectedInterpreter?.type === 'browser' ? 'preview' : 'console');
+       if (window.innerWidth < 768) setMobileActiveTab(selectedInterpreter?.type === 'browser' || selectedInterpreter?.type === 'ai' ? 'preview' : 'console');
        if (!isLiveMode) {
            setIsLiveMode(true);
            handleRun();
@@ -297,6 +292,12 @@ const App: React.FC = () => {
              <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5">
                 <Container size={12} className={backendStatus.includes('Ready') ? 'text-emerald-500' : 'text-amber-500 animate-pulse'} />
                 <span className="text-[10px] font-mono text-gray-600 dark:text-gray-300">{backendStatus || 'Disconnected'}</span>
+             </div>
+        )}
+        {selectedInterpreter.type === 'ai' && (
+             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20">
+                <Sparkles size={12} className="text-indigo-500" />
+                <span className="text-[10px] font-mono text-indigo-700 dark:text-indigo-300">AI Simulation Mode</span>
              </div>
         )}
 
