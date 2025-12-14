@@ -113,11 +113,12 @@ function fibonacci(n) {
 
 console.log("Fibonacci(10):", fibonacci(10));
 
-// Example: Visual Output (AI Mode can simulate charts)
-// When running in AI Mode, this will generate a real chart.
+// Example: Visual Output (Browser Mode)
+// If you create elements and attach them to the body, they will appear in the Preview tab.
 /* 
-   const ctx = document.createElement('canvas').getContext('2d');
-   // ... drawing logic ...
+   const el = document.createElement('div');
+   el.innerText = 'Dynamic Element';
+   document.body.appendChild(el);
 */
 `,
   html: `<!-- 
@@ -137,25 +138,35 @@ console.log("Fibonacci(10):", fibonacci(10));
 </div>
 `,
   python: `# Universal Python Runner
-# Use AI Mode to simulate libraries like matplotlib, numpy, or pandas without installation.
+# Uses Standard Library Only - Runs in any Python environment (Local/Docker/AI)
 
-import numpy as np
-import matplotlib.pyplot as plt
+import math
+import random
+import time
+import json
 
-# 1. Standard Output
-print("Generating Data Visualization...")
-x = np.linspace(0, 10, 100)
-y = np.sin(x)
+print("Starting Data Simulation...")
 
-print(f"Computed {len(x)} points.")
+# 1. Logic Simulation
+data_points = []
+for i in range(1, 6):
+    value = random.gauss(0, 1) * 10
+    data_points.append(round(value, 2))
+    print(f"Batch {i}: Processed value {value:.2f}")
+    # Simulating work
+    time.sleep(0.1)
 
-# 2. Visual Output (AI will render this as an SVG/Image)
-plt.figure(figsize=(8, 4))
-plt.plot(x, y, label='Sine Wave', color='#6366f1', linewidth=2)
-plt.title('AI Simulated Plotting')
-plt.grid(True, alpha=0.3)
-plt.legend()
-plt.show()
+# 2. Results
+stats = {
+    "count": len(data_points),
+    "min": min(data_points),
+    "max": max(data_points),
+    "mean": sum(data_points) / len(data_points)
+}
+
+print("-" * 30)
+print("Processing Complete. Statistics:")
+print(json.dumps(stats, indent=2))
 `,
   typescript: `interface User {
   id: number;
@@ -267,20 +278,20 @@ public class Main {
     }
 }
 `,
-  ruby: `puts "Ruby Metaprogramming Magic"
+  ruby: `puts "Ruby Standard Library Demo"
 
-class Developer
-  define_method :code do |lang|
-    puts "Writing nice #{lang} code..."
-  end
+# Using standard Math and Time modules
+start_time = Time.now
+
+puts "Calculating..."
+results = (1..5).map do |i|
+  val = Math.sqrt(i * 100)
+  puts "Sqrt of #{i*100} is #{val}"
+  val
 end
 
-dev = Developer.new
-dev.code("Ruby")
-dev.code("JavaScript")
-
-puts "\nArray Operations:"
-puts [1, 2, 3, 4, 5].select { |n| n.even? }.map { |n| n * 10 }.inspect
+puts "\nArray Result: #{results.inspect}"
+puts "Duration: #{(Time.now - start_time).round(4)}s"
 `,
   php: `<?php
 echo "PHP Modern Features\n";

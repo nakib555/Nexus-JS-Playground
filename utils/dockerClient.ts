@@ -28,6 +28,56 @@ class DockerClient {
     return this.backendUrl;
   }
 
+  public async verifyConnection(url: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const sanitizedUrl = url.replace(/\/$/, "");
+      console.log(`[DockerClient] Verifying connection to ${sanitizedUrl}...`);
+      
+      const tempSocket = io(sanitizedUrl, {
+        transports: ['websocket'],
+        reconnection: false,
+        timeout: 5000,
+        forceNew: true,
+      });
+
+      let resolved = false;
+
+      const cleanup = () => {
+        if (tempSocket) {
+            tempSocket.disconnect();
+            tempSocket.removeAllListeners();
+        }
+      };
+
+      tempSocket.on("connect", () => {
+        if (!resolved) {
+          resolved = true;
+          console.log("[DockerClient] Verification successful");
+          cleanup();
+          resolve(true);
+        }
+      });
+
+      tempSocket.on("connect_error", (err) => {
+        if (!resolved) {
+          resolved = true;
+          console.warn("[DockerClient] Verification failed:", err);
+          cleanup();
+          resolve(false);
+        }
+      });
+
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          console.warn("[DockerClient] Verification timed out");
+          cleanup();
+          resolve(false);
+        }
+      }, 5000);
+    });
+  }
+
   public connect(
     language: string, 
     image: string, 

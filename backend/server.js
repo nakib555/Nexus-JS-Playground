@@ -1,6 +1,6 @@
 /**
- * Dynamic Code Execution Backend
- * Supports both Docker-based isolation and Local Process fallback.
+ * Nexus JS Playground Backend
+ * Docker + Local Fallback Execution
  */
 const express = require('express');
 const http = require('http');
@@ -14,15 +14,39 @@ const os = require('os');
 const app = express();
 const server = http.createServer(app);
 
-// Allow CORS for all origins to enable Cloudflare -> Render connection
 const io = new Server(server, {
   cors: {
-    origin: "*", 
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
-// --- Execution Engine Setup ---
+// --- CSP Header Middleware ---
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-eval' blob:; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "font-src 'self' data:; " +
+    "img-src 'self' data:; " +
+    "connect-src 'self' ws: wss: *;"
+  );
+  next();
+});
+
+// --- Serve Frontend ---
+const frontendPath = path.join(__dirname, 'frontend_build');
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => res.send('Nexus JS Playground Backend is running!'));
+}
+
+// --- Docker Setup ---
 const DOCKER_SOCKET = '/var/run/docker.sock';
 const HAS_DOCKER = fs.existsSync(DOCKER_SOCKET);
 let docker = null;
@@ -30,31 +54,27 @@ let docker = null;
 if (HAS_DOCKER) {
   try {
     docker = new Docker({ socketPath: DOCKER_SOCKET });
-    console.log("✅ Docker Socket found. Using Container Isolation Mode.");
-  } catch (e) {
-    console.warn("⚠️ Docker init failed. Falling back to Local Process Mode.");
+    console.log("✅ Docker detected. Using container isolation.");
+  } catch {
+    console.warn("⚠️ Docker init failed. Falling back to local execution.");
   }
 } else {
-  console.log("ℹ️ No Docker Socket. Using Local Process Mode (Standard Execution).");
+  console.log("ℹ️ Docker not found. Using local process execution.");
 }
 
-// Active Sessions
+// --- Active Sessions ---
 const activeSessions = new Map();
-
-// Local Command Mapping (Fallback)
 const LOCAL_RUNTIMES = {
-  'node': 'node',
-  'python': 'python3', // or python
-  'go': 'go run',
-  'ruby': 'ruby',
-  'php': 'php',
-  'bash': 'bash',
-  'sh': 'sh',
-  'gcc': 'g++', // needs compilation logic usually, simplified here
-  'java': 'java'
+  node: 'node',
+  python: 'python3',
+  go: 'go run',
+  ruby: 'ruby',
+  php: 'php',
+  bash: 'bash',
+  sh: 'sh',
+  gcc: 'g++',
+  java: 'java'
 };
-
-// Helper to map Docker Image to Local Command
 const getLocalCommand = (image) => {
   if (image.includes('node')) return 'node';
   if (image.includes('python')) return 'python3';
@@ -65,239 +85,144 @@ const getLocalCommand = (image) => {
   return null;
 };
 
-// --- Container/Process Cleanup ---
+// --- Session Cleanup ---
 const cleanupSession = async (socketId) => {
   const session = activeSessions.get(socketId);
   if (!session) return;
-
   if (session.type === 'docker') {
     try {
       const container = docker.getContainer(session.id);
       const data = await container.inspect();
-      if (data.State.Running) {
-        await container.kill();
-      }
-      try { await container.remove({ force: true }); } catch (e) {}
-    } catch (e) { /* Ignore */ }
+      if (data.State.Running) await container.kill();
+      try { await container.remove({ force: true }); } catch {}
+    } catch {}
   } else if (session.type === 'local') {
-    // Kill local process if running (usually handled by run logic, but good for cleanup)
-    if (session.process && !session.process.killed) {
-        session.process.kill();
-    }
+    if (session.process && !session.process.killed) session.process.kill();
   }
-  
   activeSessions.delete(socketId);
   console.log(`[${socketId}] Session cleaned up.`);
 };
 
+// --- Socket.io ---
 io.on('connection', (socket) => {
-  console.log(`[${socket.id}] Client connected`);
+  console.log(`[${socket.id}] Connected`);
+  socket.emit('system-status', { dockerAvailable: HAS_DOCKER && !!docker, mode: (HAS_DOCKER && !!docker) ? 'docker' : 'local' });
 
-  // Emit capabilities immediately
-  socket.emit('system-status', { 
-    dockerAvailable: HAS_DOCKER && !!docker, 
-    mode: (HAS_DOCKER && !!docker) ? 'docker' : 'local' 
-  });
-
-  // 1. Initialize Session
+  // Init Session
   socket.on('init-session', async ({ language, image }) => {
     try {
-      if (activeSessions.has(socket.id)) {
-        await cleanupSession(socket.id);
-      }
-
-      // MODE: DOCKER
+      if (activeSessions.has(socket.id)) await cleanupSession(socket.id);
       if (HAS_DOCKER && docker) {
-        console.log(`[${socket.id}] Spawning Docker: ${image}`);
         const container = await docker.createContainer({
           Image: image,
-          Cmd: ['/bin/sh', '-c', 'while true; do sleep 1000; done'], 
+          Cmd: ['/bin/sh', '-c', 'while true; do sleep 1000; done'],
           Tty: false,
           OpenStdin: true,
-          HostConfig: {
-              Memory: 512 * 1024 * 1024,
-              CpuPeriod: 100000, 
-              CpuQuota: 50000,
-              AutoRemove: true,
-              NetworkMode: 'none'
-          }
+          HostConfig: { Memory: 512*1024*1024, CpuPeriod:100000, CpuQuota:50000, AutoRemove:true, NetworkMode:'none' }
         });
         await container.start();
         activeSessions.set(socket.id, { type: 'docker', id: container.id });
         socket.emit('session-ready', { containerId: container.id, mode: 'docker' });
-      } 
-      // MODE: LOCAL
-      else {
+      } else {
         const localCmd = getLocalCommand(image);
-        console.log(`[${socket.id}] Init Local: ${localCmd || 'Unknown'}`);
-        // We don't spawn a persistent process for local, we just mark readiness
-        // The process is spawned on 'run-code'
         activeSessions.set(socket.id, { type: 'local', cmd: localCmd });
         socket.emit('session-ready', { containerId: 'local-env', mode: 'local' });
       }
-
     } catch (err) {
-      console.error(`[${socket.id}] Init Error:`, err);
+      console.error(err);
       socket.emit('error', 'Init failed: ' + err.message);
     }
   });
 
-  // 2. Run Code
+  // Run Code
   socket.on('run-code', async ({ code, extension, entryCommand }) => {
     const session = activeSessions.get(socket.id);
     if (!session) return socket.emit('error', 'Session expired.');
-
     const tempDir = os.tmpdir();
-    const fileName = `code_${socket.id}_${Date.now()}.${extension}`;
-    const filePath = path.join(tempDir, fileName);
-    const outputImgPath = path.join(tempDir, `output_${socket.id}.png`);
+    const filePath = path.join(tempDir, `code_${socket.id}_${Date.now()}.${extension}`);
 
-    // DOCKER EXECUTION
     if (session.type === 'docker') {
       const container = docker.getContainer(session.id);
       try {
         const b64Code = Buffer.from(code).toString('base64');
-        const containerPath = `/tmp/${fileName}`;
-        const containerImgPath = `/tmp/output.png`;
-        
-        // Write File
+        const containerPath = `/tmp/${path.basename(filePath)}`;
         const writeCmd = `echo "${b64Code}" | base64 -d > ${containerPath}`;
-        const execWrite = await container.exec({ Cmd: ['sh', '-c', writeCmd] });
-        await execWrite.start({}); 
+        const execWrite = await container.exec({ Cmd: ['sh','-c', writeCmd] });
+        await execWrite.start({});
 
-        // Adjust Command
-        let finalCmd = entryCommand;
-        if (finalCmd.includes('/tmp/code')) {
-            finalCmd = finalCmd.replace(/\/tmp\/code\.\w+/, containerPath);
-        } else {
-            finalCmd = `${entryCommand} ${containerPath}`;
-        }
-        
-        // Run
-        const exec = await container.exec({
-          Cmd: ['sh', '-c', finalCmd],
-          AttachStdout: true,
-          AttachStderr: true
-        });
-        const stream = await exec.start({});
-        
-        container.modem.demuxStream(stream, {
-          write: (chunk) => socket.emit('output', { stream: 'stdout', data: chunk.toString() })
-        }, {
-          write: (chunk) => socket.emit('output', { stream: 'stderr', data: chunk.toString() })
-        });
+        let finalCmd = entryCommand.includes('/tmp/code') ? entryCommand.replace(/\/tmp\/code\.\w+/, containerPath) : `${entryCommand} ${containerPath}`;
+        const execRun = await container.exec({ Cmd: ['sh','-c', finalCmd], AttachStdout:true, AttachStderr:true });
+        const stream = await execRun.start({});
+        container.modem.demuxStream(stream, { write: c=>socket.emit('output',{stream:'stdout',data:c.toString()}) }, { write: c=>socket.emit('output',{stream:'stderr',data:c.toString()}) });
 
-        // Monitor Exit & Images
         const checkExit = setInterval(async () => {
-             try {
-                const inspect = await exec.inspect();
-                if (!inspect.Running) {
-                    clearInterval(checkExit);
-                    
-                    // Check for image output
-                    const imgCmd = `if [ -f ${containerImgPath} ]; then base64 ${containerImgPath}; rm ${containerImgPath}; fi`;
-                    const imgExec = await container.exec({ Cmd: ['sh', '-c', imgCmd], AttachStdout: true });
-                    const imgStream = await imgExec.start();
-                    let imgData = '';
-                    container.modem.demuxStream(imgStream, { write: c => imgData += c.toString() }, { write: () => {} });
-                    
-                    await new Promise(r => setTimeout(r, 500));
-                    if (imgData.replace(/\s/g, '').length > 20) {
-                        socket.emit('output', { stream: 'stdout', data: `data:image/png;base64,${imgData.replace(/\s/g, '')}` });
-                    }
+          try {
+            const inspect = await execRun.inspect();
+            if (!inspect.Running) {
+              clearInterval(checkExit);
+              
+              // Check for potential image output (e.g. from a script that wrote to /tmp/output.png)
+              // This is a heuristic to support visual output from non-library code if it manages to produce a file
+              const containerImgPath = '/tmp/output.png'; 
+              const imgCmd = `if [ -f ${containerImgPath} ]; then base64 ${containerImgPath}; rm ${containerImgPath}; fi`;
+              const imgExec = await container.exec({ Cmd: ['sh', '-c', imgCmd], AttachStdout: true });
+              const imgStream = await imgExec.start();
+              let imgData = '';
+              container.modem.demuxStream(imgStream, { write: c => imgData += c.toString() }, { write: () => {} });
+              
+              if (imgData.replace(/\s/g, '').length > 20) {
+                 socket.emit('output', { stream: 'stdout', data: `data:image/png;base64,${imgData.replace(/\s/g, '')}` });
+              }
 
-                    // Cleanup code file
-                    await container.exec({ Cmd: ['rm', containerPath] }).then(e => e.start({}));
-                    
-                    socket.emit('exit', inspect.ExitCode);
-                }
-             } catch(e) { clearInterval(checkExit); }
+              socket.emit('exit', inspect.ExitCode);
+              await container.exec({ Cmd:['rm',containerPath] }).then(e=>e.start({}));
+            }
+          } catch { clearInterval(checkExit); }
         }, 200);
 
-      } catch (err) {
-        socket.emit('error', 'Docker Exec Error: ' + err.message);
-      }
-    } 
-    // LOCAL EXECUTION
-    else if (session.type === 'local') {
-      try {
-        // Write File Locally
-        fs.writeFileSync(filePath, code);
+      } catch (err) { socket.emit('error', 'Docker Exec Error: '+err.message); }
 
-        // Adjust Command
-        let cmd = session.cmd || 'node'; // Default fallback
+    } else {
+      try {
+        fs.writeFileSync(filePath, code);
+        let cmd = session.cmd || 'node';
         let args = [filePath];
-        
-        // Handle custom entry commands like "go run"
         if (entryCommand) {
-            // E.g. "python3" or "go run"
-            // If entryCommand expects a file path arg, strictly it's "cmd file"
-            // We do a naive split
+          if (entryCommand.includes('/tmp/code')) {
+            cmd = 'sh';
+            args = ['-c', entryCommand.replace(/\/tmp\/code\.\w+/, filePath)];
+          } else {
             const parts = entryCommand.split(' ');
             cmd = parts[0];
-            
-            // Re-construct args. 
-            // If the command template was "g++ -o app /tmp/code.cpp", we need to replace path
-            if (entryCommand.includes('/tmp/code')) {
-                // Complex command (C++, Rust script)
-                // We run this in a shell for simplicity
-                cmd = 'sh';
-                args = ['-c', entryCommand.replace(/\/tmp\/code\.\w+/, filePath).replace(/\/tmp\/output\.png/, outputImgPath)];
-            } else {
-                // Simple command "python3"
-                if (parts.length > 1) {
-                    args = [...parts.slice(1), filePath];
-                } else {
-                    args = [filePath];
-                }
-            }
+            args = [...parts.slice(1), filePath];
+          }
         }
-
-        console.log(`[${socket.id}] Local Run: ${cmd} ${args.join(' ')}`);
-
-        const child = spawn(cmd, args, { 
-            cwd: tempDir,
-            env: { ...process.env, MPLBACKEND: 'Agg' } // Python Matplotlib non-interactive
-        });
-        
-        // Attach to session for potential kill
+        const child = spawn(cmd, args, { cwd: tempDir, env:{...process.env, MPLBACKEND:'Agg'} });
         session.process = child;
-
-        child.stdout.on('data', (data) => socket.emit('output', { stream: 'stdout', data: data.toString() }));
-        child.stderr.on('data', (data) => socket.emit('output', { stream: 'stderr', data: data.toString() }));
-
-        child.on('close', (code) => {
-            // Check for image output (e.g. matplotlib savefig)
-            // We assume the user code might save to 'output.png' in cwd
-            const possibleOut = path.join(tempDir, 'output.png'); // Python default often
-            if (fs.existsSync(possibleOut)) {
-                const img = fs.readFileSync(possibleOut, 'base64');
-                socket.emit('output', { stream: 'stdout', data: `data:image/png;base64,${img}` });
-                fs.unlinkSync(possibleOut);
-            }
-            
-            // Clean up code
-            try { fs.unlinkSync(filePath); } catch(e){}
-            
-            socket.emit('exit', code);
+        child.stdout.on('data', d=>socket.emit('output',{stream:'stdout',data:d.toString()}));
+        child.stderr.on('data', d=>socket.emit('output',{stream:'stderr',data:d.toString()}));
+        child.on('close', code=>{
+          const possibleOut = path.join(tempDir,'output.png');
+          if (fs.existsSync(possibleOut)) {
+            const img = fs.readFileSync(possibleOut,'base64');
+            socket.emit('output',{stream:'stdout',data:`data:image/png;base64,${img}`});
+            fs.unlinkSync(possibleOut);
+          }
+          fs.unlinkSync(filePath);
+          socket.emit('exit', code);
         });
-
-        child.on('error', (err) => {
-            socket.emit('error', 'Spawn Error: ' + err.message);
-        });
-
-      } catch (err) {
-        socket.emit('error', 'Local Exec Error: ' + err.message);
-      }
+        child.on('error', err=>socket.emit('error','Spawn Error: '+err.message));
+      } catch(err){ socket.emit('error','Local Exec Error: '+err.message); }
     }
   });
 
-  socket.on('stop-session', () => cleanupSession(socket.id));
-  socket.on('disconnect', () => cleanupSession(socket.id));
+  socket.on('stop-session', ()=>cleanupSession(socket.id));
+  socket.on('disconnect', ()=>cleanupSession(socket.id));
 });
 
+// --- Start Server ---
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Backend listening on port ${PORT}`);
-  console.log(`Mode: ${HAS_DOCKER ? 'Docker (High Isolation)' : 'Local (Process Fallback)'}`);
+  console.log(`Mode: ${HAS_DOCKER ? 'Docker' : 'Local Fallback'}`);
 });
