@@ -7,8 +7,17 @@ export const LANGUAGES: Language[] = [
     prismId: 'javascript', 
     interpreters: [
       { id: 'js-v8', name: 'Browser Runtime', type: 'browser', version: 'ESNext', description: 'Executes locally in the browser. Supports DOM and Web APIs.' },
-      { id: 'js-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates execution logic via AI.' },
+      { id: 'js-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Runs any JS code with simulated standard libraries.' },
       { id: 'js-node', name: 'Node.js Container', type: 'docker', version: 'Node 20', description: 'Real Node.js 20 environment running in Docker.', dockerImage: 'node:20-alpine', extension: 'js', entryCommand: 'node' }
+    ]
+  },
+  { 
+    id: 'python', 
+    name: 'Python', 
+    prismId: 'python', 
+    interpreters: [
+      { id: 'py-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Runs any Python code. Simulates matplotlib, pandas, etc.' },
+      { id: 'py-docker', name: 'Python Container', type: 'docker', version: '3.11', description: 'Real Python 3.11 environment in Docker.', dockerImage: 'python:3.11-alpine', extension: 'py', entryCommand: 'python3' }
     ]
   },
   { 
@@ -21,20 +30,11 @@ export const LANGUAGES: Language[] = [
     ]
   },
   { 
-    id: 'python', 
-    name: 'Python', 
-    prismId: 'python', 
-    interpreters: [
-      { id: 'py-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates execution via AI. Supports standard libraries & plots.' },
-      { id: 'py-docker', name: 'Python Container', type: 'docker', version: '3.11', description: 'Real Python 3.11 environment in Docker.', dockerImage: 'python:3.11-alpine', extension: 'py', entryCommand: 'python3' }
-    ]
-  },
-  { 
     id: 'typescript', 
     name: 'TypeScript', 
     prismId: 'typescript', 
     interpreters: [
-      { id: 'ts-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates TypeScript execution via AI.' },
+      { id: 'ts-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates TypeScript execution with type checking logic.' },
       { id: 'ts-docker', name: 'TypeScript Container', type: 'docker', version: '5.2', description: 'Compiles and runs TypeScript in Docker.', dockerImage: 'mhart/alpine-node:16', extension: 'ts', entryCommand: 'npx ts-node' }
     ]
   },
@@ -43,7 +43,7 @@ export const LANGUAGES: Language[] = [
     name: 'Go', 
     prismId: 'go', 
     interpreters: [
-      { id: 'go-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Go execution via AI.' },
+      { id: 'go-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Go execution via AI.' },
       { id: 'go-docker', name: 'Go Container', type: 'docker', version: '1.21', description: 'Go 1.21 environment.', dockerImage: 'golang:1.21-alpine', extension: 'go', entryCommand: 'go run' }
     ]
   },
@@ -52,7 +52,7 @@ export const LANGUAGES: Language[] = [
     name: 'Rust', 
     prismId: 'rust', 
     interpreters: [
-      { id: 'rust-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Rust execution via AI.' },
+      { id: 'rust-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Rust execution via AI.' },
       { id: 'rust-docker', name: 'Rust Container', type: 'docker', version: '1.75', description: 'Compiles and runs Rust code.', dockerImage: 'rust:alpine', extension: 'rs', entryCommand: 'rust-script' }
     ]
   },
@@ -61,7 +61,7 @@ export const LANGUAGES: Language[] = [
     name: 'C++', 
     prismId: 'cpp', 
     interpreters: [
-      { id: 'cpp-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates C++ execution via AI.' },
+      { id: 'cpp-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates C++ execution via AI.' },
       { id: 'cpp-docker', name: 'GCC Container', type: 'docker', version: 'GCC 12', description: 'Compiles using g++ and executes.', dockerImage: 'frolvlad/alpine-gxx', extension: 'cpp', entryCommand: 'g++ -o /tmp/app /tmp/code.cpp && /tmp/app' }
     ]
   },
@@ -70,7 +70,7 @@ export const LANGUAGES: Language[] = [
     name: 'Java', 
     prismId: 'java', 
     interpreters: [
-      { id: 'java-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Java execution via AI.' },
+      { id: 'java-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Java execution via AI.' },
       { id: 'java-docker', name: 'OpenJDK Container', type: 'docker', version: '21', description: 'OpenJDK 21 environment.', dockerImage: 'openjdk:21-slim', extension: 'java', entryCommand: 'java' }
     ]
   },
@@ -79,7 +79,7 @@ export const LANGUAGES: Language[] = [
     name: 'Ruby', 
     prismId: 'ruby', 
     interpreters: [
-      { id: 'ruby-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Ruby execution via AI.' },
+      { id: 'ruby-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Ruby execution via AI.' },
       { id: 'ruby-docker', name: 'Ruby Container', type: 'docker', version: '3.2', description: 'Ruby 3.2 environment.', dockerImage: 'ruby:3.2-alpine', extension: 'rb', entryCommand: 'ruby' }
     ]
   },
@@ -88,7 +88,7 @@ export const LANGUAGES: Language[] = [
     name: 'PHP', 
     prismId: 'php', 
     interpreters: [
-      { id: 'php-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates PHP execution via AI.' },
+      { id: 'php-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates PHP execution via AI.' },
       { id: 'php-docker', name: 'PHP CLI', type: 'docker', version: '8.2', description: 'PHP 8.2 CLI environment.', dockerImage: 'php:8.2-cli-alpine', extension: 'php', entryCommand: 'php' }
     ]
   },
@@ -97,140 +97,216 @@ export const LANGUAGES: Language[] = [
     name: 'Bash', 
     prismId: 'bash', 
     interpreters: [
-      { id: 'bash-ai', name: 'AI Simulator', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Bash execution via AI.' },
+      { id: 'bash-ai', name: 'AI Universal', type: 'ai', version: 'Gemini 3.0', description: 'Simulates Bash execution via AI.' },
       { id: 'bash-docker', name: 'Shell Container', type: 'docker', version: 'Alpine', description: 'Alpine Linux Shell.', dockerImage: 'alpine:latest', extension: 'sh', entryCommand: 'sh' }
     ]
   }
 ];
 
 export const LANGUAGE_TEMPLATES: Record<string, string> = {
-  javascript: `console.log("Hello from JavaScript!");
-const data = [10, 25, 40, 35, 20];
-console.log("Data:", data);
+  javascript: `console.log("Hello from Nexus!");
 
-// Browser Runtime supports DOM APIs:
-if (typeof document !== 'undefined') {
-  const div = document.createElement('div');
-  div.innerText = "DOM Manipulation Works!";
-  div.style.color = 'salmon';
-  div.style.marginTop = '10px';
-  document.body.appendChild(div);
+// Example: Simulating complex logic
+function fibonacci(n) {
+  return n < 1 ? 0 : n <= 2 ? 1 : fibonacci(n - 1) + fibonacci(n - 2);
 }
-`,
-  html: `<h1>Browser Renderer</h1>
-<style>
-  button { padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; }
-</style>
-<button onclick="alert('Clicked!')">Click Me</button>
-<div id="output"></div>
-<script>
-  console.log("Inline script working");
-</script>
-`,
-  python: `# Python Code
-import random
 
-# Calculate squares
-data = [x**2 for x in range(10)]
-print("Squares:", data)
-print("Random number:", random.randint(1, 100))
+console.log("Fibonacci(10):", fibonacci(10));
 
-# VISUALIZATION EXAMPLE:
-# To generate a plot, simply save it to '/tmp/output.png'
-# The environment will automatically display it.
-#
-# import matplotlib.pyplot as plt
-# plt.plot(data)
-# plt.title("Sample Plot")
-# plt.savefig('/tmp/output.png')
-# print("Plot generated!")
+// Example: Visual Output (AI Mode can simulate charts)
+// When running in AI Mode, this will generate a real chart.
+/* 
+   const ctx = document.createElement('canvas').getContext('2d');
+   // ... drawing logic ...
+*/
+`,
+  html: `<!-- 
+  Universal HTML Renderer 
+  Supports Tailwind CSS via CDN automatically
+-->
+<div class="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-10">
+  <div class="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+    Nexus Preview
+  </div>
+  <p class="text-slate-400 text-lg mb-8">
+    Edit this code to see live updates.
+  </p>
+  <button class="px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-500/50">
+    Interactive Button
+  </button>
+</div>
+`,
+  python: `# Universal Python Runner
+# Use AI Mode to simulate libraries like matplotlib, numpy, or pandas without installation.
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 1. Standard Output
+print("Generating Data Visualization...")
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+print(f"Computed {len(x)} points.")
+
+# 2. Visual Output (AI will render this as an SVG/Image)
+plt.figure(figsize=(8, 4))
+plt.plot(x, y, label='Sine Wave', color='#6366f1', linewidth=2)
+plt.title('AI Simulated Plotting')
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.show()
 `,
   typescript: `interface User {
   id: number;
   name: string;
   role: 'admin' | 'user';
+  active: boolean;
 }
 
-const user: User = { 
-  id: 1, 
-  name: "Nexus User",
-  role: 'admin' 
-};
+const users: User[] = [
+  { id: 1, name: "Alice", role: 'admin', active: true },
+  { id: 2, name: "Bob", role: 'user', active: false },
+  { id: 3, name: "Charlie", role: 'user', active: true },
+];
 
-console.log("Active User:", user);
+// AI Runner handles console.table beautifully
+console.table(users);
+
+const activeUsers = users.filter(u => u.active);
+console.log(\`Found \${activeUsers.length} active users.\`);
 `,
   go: `package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 func main() {
-	fmt.Println("Hello from Go!")
+	fmt.Println("Starting Goroutines Simulation...")
 	
-	numbers := []int{1, 2, 3, 4, 5}
-	sum := 0
-	for _, n := range numbers {
-		sum += n
+	c := make(chan string)
+	
+	go count("sheep", c)
+	
+	for msg := range c {
+		fmt.Println(msg)
 	}
-	fmt.Printf("Sum: %d\\n", sum)
+}
+
+func count(thing string, c chan string) {
+	for i := 1; i <= 3; i++ {
+		c <- fmt.Sprintf("Counted %d %s", i, thing)
+		time.Sleep(time.Millisecond * 500)
+	}
+	close(c)
 }
 `,
   rust: `fn main() {
-    println!("Hello from Rust!");
+    println!("Rust Ownership Example");
+    
+    let s1 = String::from("Nexus");
+    let s2 = s1; // Ownership moved
+    
+    // println!("{}", s1); // This would error!
+    println!("Moved ownership to: {}", s2);
     
     let numbers = vec![1, 2, 3, 4, 5];
-    let sum: i32 = numbers.iter().sum();
+    let doubled: Vec<i32> = numbers.iter().map(|x| x * 2).collect();
     
-    println!("Sum: {}", sum);
+    println!("Doubled: {:?}", doubled);
 }
 `,
   cpp: `#include <iostream>
 #include <vector>
-#include <numeric>
+#include <algorithm>
+#include <string>
+
+struct Student {
+    std::string name;
+    int score;
+};
 
 int main() {
-    std::cout << "Hello from C++!" << std::endl;
+    std::vector<Student> classA = {
+        {"Alice", 92},
+        {"Bob", 78},
+        {"Charlie", 88}
+    };
     
-    std::vector<int> v = {1, 2, 3, 4, 5};
-    int sum = std::accumulate(v.begin(), v.end(), 0);
+    std::cout << "Class Roster:" << std::endl;
+    for (const auto& s : classA) {
+        std::cout << "- " << s.name << ": " << s.score << std::endl;
+    }
     
-    std::cout << "Sum: " << sum << std::endl;
+    auto topStudent = std::max_element(classA.begin(), classA.end(), 
+        [](const Student& a, const Student& b) {
+            return a.score < b.score;
+        });
+        
+    std::cout << "\nTop Student: " << topStudent->name << std::endl;
+    
     return 0;
 }
 `,
-  java: `public class Main {
+  java: `import java.util.stream.IntStream;
+
+public class Main {
     public static void main(String[] args) {
-        System.out.println("Hello from Java!");
+        System.out.println("Java Stream API Simulation");
         
-        int[] numbers = {1, 2, 3, 4, 5};
-        int sum = 0;
-        for (int n : numbers) {
-            sum += n;
-        }
-        
-        System.out.println("Sum: " + sum);
+        System.out.println("Even numbers > 50:");
+        IntStream.range(1, 100)
+                 .filter(n -> n % 2 == 0)
+                 .filter(n -> n > 50)
+                 .limit(5)
+                 .forEach(System.out::println);
+                 
+        System.out.println("\nExecution Complete.");
     }
 }
 `,
-  ruby: `puts "Hello from Ruby!"
+  ruby: `puts "Ruby Metaprogramming Magic"
 
-numbers = [1, 2, 3, 4, 5]
-sum = numbers.sum
+class Developer
+  define_method :code do |lang|
+    puts "Writing nice #{lang} code..."
+  end
+end
 
-puts "Sum: #{sum}"
+dev = Developer.new
+dev.code("Ruby")
+dev.code("JavaScript")
+
+puts "\nArray Operations:"
+puts [1, 2, 3, 4, 5].select { |n| n.even? }.map { |n| n * 10 }.inspect
 `,
   php: `<?php
-echo "Hello from PHP!\n";
+echo "PHP Modern Features\n";
 
-$numbers = [1, 2, 3, 4, 5];
-$sum = array_sum($numbers);
+$users = [
+    ['name' => 'Alice', 'role' => 'admin'],
+    ['name' => 'Bob', 'role' => 'editor'],
+];
 
-echo "Sum: " . $sum . "\n";
+// Arrow functions
+$admins = array_filter($users, fn($u) => $u['role'] === 'admin');
+
+print_r($admins);
+
+echo "\nDate: " . date('Y-m-d H:i:s');
 ?>
 `,
-  bash: `echo "Hello from Bash!"
-echo "Current Date: $(date)"
-echo "Generating sequence:"
-seq 1 5
+  bash: `echo "System Report"
+echo "-------------"
+echo "User: $(whoami)"
+echo "Kernel: $(uname -r)"
+echo "Uptime: $(uptime)"
+
+echo "\nDisk Usage Simulation:"
+echo "Filesystem      Size  Used Avail Use% Mounted on"
+echo "/dev/sda1       100G   45G   55G  45% /"
 `
 };
 

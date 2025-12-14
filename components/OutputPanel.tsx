@@ -20,6 +20,26 @@ const getType = (value: any): string => {
   return type;
 };
 
+// Simple Markdown Renderer for Logs
+const MarkdownText: React.FC<{ text: string }> = ({ text }) => {
+  // Split by bold (**text**)
+  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+  
+  return (
+    <span className="break-all whitespace-pre-wrap">
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={i} className="font-bold text-gray-900 dark:text-gray-100">{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return <code key={i} className="bg-black/5 dark:bg-white/10 px-1 rounded text-[10px] font-mono text-indigo-600 dark:text-indigo-400">{part.slice(1, -1)}</code>;
+        }
+        return part;
+      })}
+    </span>
+  );
+};
+
 const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = ({ name, value, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(depth < 1);
   const type = getType(value);
@@ -29,23 +49,23 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
   const renderValue = () => {
     switch (type) {
       case 'string':
-        // Detect Base64 Images
-        if (value.startsWith('data:image/')) {
+        // Detect Images (Base64 or URL)
+        if (value.startsWith('data:image/') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp)$/) || value.includes('placeholder')))) {
             return (
-                <div className="mt-1 mb-2 inline-block">
-                    <img src={value} alt="Console Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm" />
+                <div className="mt-1 mb-2 inline-block group relative">
+                    <img src={value} alt="Console Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm bg-gray-50 dark:bg-black/50" />
                 </div>
             );
         }
         // Detect HTML-like strings
         if ((value.startsWith('<') && value.endsWith('>')) || value.trim().startsWith('<!DOCTYPE') || value.trim().startsWith('<svg')) {
              return (
-                 <div className="mt-2 mb-2 p-2 bg-white dark:bg-black/20 rounded border border-gray-200 dark:border-white/10 overflow-auto">
+                 <div className="mt-2 mb-2 p-2 bg-white dark:bg-black/20 rounded border border-gray-200 dark:border-white/10 overflow-auto max-w-full">
                      <div dangerouslySetInnerHTML={{ __html: value }} />
                  </div>
              );
         }
-        return <span className="text-orange-600 dark:text-orange-300 break-all whitespace-pre-wrap">"{value}"</span>;
+        return <span className="text-orange-600 dark:text-orange-300"><MarkdownText text={value} /></span>;
       case 'number':
         return <span className="text-blue-600 dark:text-cyan-300 font-bold">{value}</span>;
       case 'boolean':
@@ -97,7 +117,7 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
   return (
     <div className="flex items-start">
       {name && <span className="text-indigo-600 dark:text-indigo-300 mr-2 shrink-0">{name}:</span>}
-      <div className="min-w-0">{renderValue()}</div>
+      <div className="min-w-0 w-full">{renderValue()}</div>
     </div>
   );
 };
@@ -121,7 +141,11 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   useEffect(() => {
     const root = document.getElementById(visualRootId);
     if (!root) return;
-    const checkContent = () => setHasVisualContent(root.querySelector('iframe') !== null);
+    const checkContent = () => {
+        const iframe = root.querySelector('iframe');
+        // Simple heuristic: if iframe exists, we have visual content.
+        setHasVisualContent(!!iframe);
+    };
     const observer = new MutationObserver(checkContent);
     observer.observe(root, { childList: true, subtree: true });
     checkContent();
@@ -137,7 +161,18 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
       setEffectiveLayout(layoutMode);
       return;
     }
-    setEffectiveLayout(hasVisualContent && logs.length > 0 ? 'split' : logs.length > 0 ? 'console' : 'visual');
+    // Auto Mode Logic:
+    // If logs exist and visual exists -> Split
+    // If logs exist and NO visual -> Console
+    // If NO logs and visual exists -> Visual
+    // Default -> Console
+    if (hasVisualContent && logs.length > 0) {
+        setEffectiveLayout('split');
+    } else if (hasVisualContent) {
+        setEffectiveLayout('visual');
+    } else {
+        setEffectiveLayout('console');
+    }
   }, [layoutMode, hasVisualContent, logs.length, mobileView]);
 
   useEffect(() => {
