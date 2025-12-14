@@ -44,6 +44,7 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
+  const [hasVisualContent, setHasVisualContent] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -84,6 +85,7 @@ const App: React.FC = () => {
     setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
     setLogs([]);
     setIsLiveMode(false);
+    setHasVisualContent(false);
   };
 
   const handleBackToSelection = () => {
@@ -97,6 +99,7 @@ const App: React.FC = () => {
     setMobileActiveTab('editor');
     setIsLiveMode(false);
     setIsRunning(false);
+    setHasVisualContent(false);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -143,6 +146,7 @@ const App: React.FC = () => {
 
     setIsRunning(true);
     handleClearLogs();
+    setHasVisualContent(false); // Reset visual state on run
 
     // AI SIMULATION
     if (selectedInterpreter.type === 'ai') {
@@ -154,7 +158,9 @@ const App: React.FC = () => {
           (htmlContent) => {
              const rootEl = getVisualRoot();
              if (rootEl) {
-                executeUserCode(htmlContent, rootEl, addLog, 'html');
+                // For AI mode, we trust that if onVisual is called, there is content.
+                setHasVisualContent(true);
+                executeUserCode(htmlContent, rootEl, addLog, 'html', undefined, (hasContent) => setHasVisualContent(hasContent));
              }
           },
           signal
@@ -184,7 +190,14 @@ const App: React.FC = () => {
           addLog(LogType.ERROR, ["Visual Root not found."]);
           return setIsRunning(false);
         }
-        executeUserCode(code, rootEl, addLog, selectedLanguage.id, selectedInterpreter.id);
+        executeUserCode(
+          code, 
+          rootEl, 
+          addLog, 
+          selectedLanguage.id, 
+          selectedInterpreter.id,
+          (hasContent) => setHasVisualContent(hasContent)
+        );
         setIsRunning(false);
       }, 50);
       return;
@@ -224,6 +237,7 @@ const App: React.FC = () => {
       handleClearLogs();
       const rootEl = getVisualRoot();
       if (rootEl) rootEl.innerHTML = '';
+      setHasVisualContent(false);
       setMobileActiveTab('editor');
     }
   };
@@ -336,7 +350,7 @@ const App: React.FC = () => {
              <CodeEditor code={code} onChange={setCode} language={selectedLanguage} />
           </div>
           <div className={`absolute inset-0 z-10 transition-opacity duration-200 flex flex-col ${mobileActiveTab !== 'editor' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-             <OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-mobile" mobileView={mobileActiveTab === 'console' ? 'console' : 'preview'} />
+             <OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-mobile" mobileView={mobileActiveTab === 'console' ? 'console' : 'preview'} hasVisualContentOverride={hasVisualContent} />
           </div>
         </div>
         <div className="hidden md:flex w-full h-full">
@@ -345,7 +359,7 @@ const App: React.FC = () => {
               <div className="absolute inset-y-0 -left-2 -right-2 z-30" />
               <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
            </div>
-           <div className="flex-1 min-w-0 bg-gray-50 dark:bg-[#030304]"><OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-desktop" /></div>
+           <div className="flex-1 min-w-0 bg-gray-50 dark:bg-[#030304]"><OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-desktop" hasVisualContentOverride={hasVisualContent} /></div>
         </div>
       </main>
 

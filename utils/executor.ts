@@ -10,7 +10,8 @@ export const executeUserCode = (
   rootElement: HTMLElement, 
   onLog: (type: LogType, args: any[]) => void,
   languageId: string = 'javascript',
-  interpreterId?: string
+  interpreterId?: string,
+  onVisualChange?: (hasContent: boolean) => void
 ) => {
   // 1. Clear previous content to destroy the old context
   rootElement.innerHTML = '';
@@ -30,12 +31,17 @@ export const executeUserCode = (
   // 3. Setup Communication Bridge
   const runId = Math.random().toString(36).substring(7);
   const logHandlerName = `__nexus_log_${runId}`;
+  const visualHandlerName = `__nexus_visual_${runId}`;
   
   (window as any)[logHandlerName] = (type: LogType, args: any[]) => {
     onLog(type, args);
   };
 
-  // 4. Construct the HTML content with Console Interceptor
+  (window as any)[visualHandlerName] = (hasContent: boolean) => {
+    if (onVisualChange) onVisualChange(hasContent);
+  };
+
+  // 4. Construct the HTML content with Console Interceptor & Visual Detector
   const consoleInterceptor = `
     <script>
       (function() {
@@ -89,6 +95,56 @@ export const executeUserCode = (
           }
         };
 
+        // --- Visual Change Detector ---
+        let hasReportedVisual = false;
+        const reportVisual = () => {
+            if (window.parent && window.parent['${visualHandlerName}']) {
+                window.parent['${visualHandlerName}'](true);
+            }
+        };
+
+        const checkVisualContent = () => {
+            // Check body children excluding scripts and this logic
+            const body = document.body;
+            if (!body) return;
+            
+            // Heuristic: If body text is not empty, or if there are elements like Canvas, SVG, Img, Divs with size
+            let hasContent = false;
+            
+            // Check for specific visible elements
+            const visibleTags = ['CANVAS', 'SVG', 'IMG', 'VIDEO', 'IFRAME', 'BUTTON', 'INPUT', 'TABLE'];
+            if (body.querySelector(visibleTags.join(','))) {
+                hasContent = true;
+            } else {
+                 // Check deep text content, excluding scripts
+                 const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+                    acceptNode: function(node) {
+                        if (node.parentNode.nodeName === 'SCRIPT' || node.parentNode.nodeName === 'STYLE') return NodeFilter.FILTER_REJECT;
+                        if (node.textContent.trim().length > 0) return NodeFilter.FILTER_ACCEPT;
+                        return NodeFilter.FILTER_SKIP;
+                    }
+                 });
+                 if (walker.nextNode()) hasContent = true;
+            }
+
+            if (hasContent && !hasReportedVisual) {
+                hasReportedVisual = true;
+                reportVisual();
+            }
+        };
+        
+        // Use MutationObserver to detect DOM changes
+        const observer = new MutationObserver((mutations) => {
+             checkVisualContent();
+        });
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+            checkVisualContent(); // Check initial
+        });
+
+        // --- Overrides ---
+
         const originalConsole = console;
         window.console = {
           ...originalConsole,
@@ -100,6 +156,10 @@ export const executeUserCode = (
           table: (...args) => { originalConsole.table(...args); sendLog('info', args); },
           clear: () => { }
         };
+
+        window.alert = (msg) => { sendLog('warn', ['[Alert]', msg]); };
+        window.confirm = (msg) => { sendLog('warn', ['[Confirm]', msg]); return true; };
+        window.prompt = (msg) => { sendLog('warn', ['[Prompt]', msg]); return null; };
 
         window.onerror = (message, source, lineno, colno, error) => {
            sendLog('error', [\`\${message} (Line \${lineno})\`]);

@@ -8,6 +8,7 @@ interface OutputPanelProps {
   // If provided, forces a specific view (used for mobile)
   mobileView?: 'console' | 'preview';
   visualRootId?: string;
+  hasVisualContentOverride?: boolean;
 }
 
 // -- Object Inspector Components --
@@ -126,31 +127,17 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   logs,
   onClearLogs,
   mobileView,
-  visualRootId = 'visual-root'
+  visualRootId = 'visual-root',
+  hasVisualContentOverride
 }) => {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [layoutMode, setLayoutMode] = useState<'auto' | 'split' | 'visual' | 'console'>('auto');
-  const [hasVisualContent, setHasVisualContent] = useState(false);
   const [effectiveLayout, setEffectiveLayout] = useState<'split' | 'visual' | 'console'>('visual');
   
   const [visualHeight, setVisualHeight] = useState(60); // percentage
   const [isDraggingVertical, setIsDraggingVertical] = useState(false);
-
-  useEffect(() => {
-    const root = document.getElementById(visualRootId);
-    if (!root) return;
-    const checkContent = () => {
-        const iframe = root.querySelector('iframe');
-        // Simple heuristic: if iframe exists, we have visual content.
-        setHasVisualContent(!!iframe);
-    };
-    const observer = new MutationObserver(checkContent);
-    observer.observe(root, { childList: true, subtree: true });
-    checkContent();
-    return () => observer.disconnect();
-  }, [visualRootId]);
 
   useEffect(() => {
     if (mobileView) {
@@ -162,18 +149,21 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
       return;
     }
     // Auto Mode Logic:
-    // If logs exist and visual exists -> Split
-    // If logs exist and NO visual -> Console
-    // If NO logs and visual exists -> Visual
-    // Default -> Console
-    if (hasVisualContent && logs.length > 0) {
-        setEffectiveLayout('split');
-    } else if (hasVisualContent) {
-        setEffectiveLayout('visual');
+    // If hasVisualContentOverride is true (from executor), we trust it.
+    // Fallback: If logs exist and NO visual -> Console
+    
+    if (hasVisualContentOverride) {
+       if (logs.length > 0) {
+         setEffectiveLayout('split');
+       } else {
+         setEffectiveLayout('visual');
+       }
     } else {
-        setEffectiveLayout('console');
+       // Default to console if no visual confirmed, but if no logs, maybe show visual container empty?
+       // Better to show console by default if uncertain.
+       setEffectiveLayout(logs.length > 0 ? 'console' : 'console'); 
     }
-  }, [layoutMode, hasVisualContent, logs.length, mobileView]);
+  }, [layoutMode, hasVisualContentOverride, logs.length, mobileView]);
 
   useEffect(() => {
     if (['console', 'split'].includes(effectiveLayout)) {
