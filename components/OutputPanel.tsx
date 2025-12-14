@@ -49,8 +49,8 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
   const renderValue = () => {
     switch (type) {
       case 'string':
-        // Detect Images (Base64 or URL)
-        if (value.startsWith('data:image/') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp)$/) || value.includes('placeholder')))) {
+        // Detect Images (Base64 or URL or Blob)
+        if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp)$/) || value.includes('placeholder')))) {
             return (
                 <div className="mt-1 mb-2 inline-block group relative">
                     <img src={value} alt="Console Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm bg-gray-50 dark:bg-black/50" />
