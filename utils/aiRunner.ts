@@ -42,6 +42,7 @@ export const executeWithAI = async (
 
     VISUALIZATION RULES:
     - **Plots/Charts**: Convert them to robust SVGs or use a CDN-based library (like Chart.js) in a self-contained HTML snippet.
+    - **Data Visualization**: If the code outputs structured data (tables, lists, graphs) that is better viewed visually, generate a visual representation (HTML Table, Chart) in addition to the text output.
     - **UI/GUI**: If the user writes UI code (e.g., Swing, Tkinter, React), render the equivalent modern HTML/CSS interface.
     - **Audio**: If the code produces sound, generate an HTML <audio> element with a data URI or valid source.
     - **Images**: If the code processes images, output the result as an <img> tag with a data URI.
@@ -52,6 +53,7 @@ export const executeWithAI = async (
     - Do NOT wrap the text output in markdown blocks unless the program itself prints markdown.
     - If there is a syntax error, simulate the compiler/interpreter error message exactly.
     - If the code uses \`input()\`, assume a sensible default value or mock the interaction in the logs.
+    - If the code is simple "non-library" code (e.g. vanilla loops, math), execute it precisely.
 
     CODE TO EXECUTE:
     ${code}

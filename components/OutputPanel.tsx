@@ -22,7 +22,7 @@ const getType = (value: any): string => {
 
 // Simple Markdown Renderer for Logs
 const MarkdownText: React.FC<{ text: string }> = ({ text }) => {
-  // Split by bold (**text**)
+  // Split by bold (**text**) or code (`text`)
   const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
   
   return (
@@ -50,7 +50,7 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
     switch (type) {
       case 'string':
         // Detect Images (Base64 or URL or Blob)
-        if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp)$/) || value.includes('placeholder')))) {
+        if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i) || value.includes('placeholder')))) {
             return (
                 <div className="mt-1 mb-2 inline-block group relative">
                     <img src={value} alt="Console Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm bg-gray-50 dark:bg-black/50" />
