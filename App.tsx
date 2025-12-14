@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
@@ -9,6 +9,7 @@ import { LANGUAGE_TEMPLATES } from './constants';
 import { LogEntry, LogType, Language, Interpreter, Command as CommandType } from './types';
 import { executeUserCode } from './utils/executor';
 import { executeWithAI } from './utils/aiRunner';
+import { dockerClient } from './utils/dockerClient';
 
 type MobileTab = 'editor' | 'preview' | 'console';
 type Theme = 'dark' | 'light';
@@ -19,6 +20,7 @@ const App: React.FC = () => {
   
   const [code, setCode] = useState<string>('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [backendStatus, setBackendStatus] = useState<string>('');
   
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
@@ -50,6 +52,27 @@ const App: React.FC = () => {
     root.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('nexus-theme', theme);
   }, [theme]);
+
+  // Docker Session Management
+  useEffect(() => {
+    if (selectedInterpreter?.type === 'docker' && selectedInterpreter.dockerImage) {
+        // Initialize Docker Session
+        dockerClient.connect(
+            selectedLanguage?.id || 'unknown',
+            selectedInterpreter.dockerImage,
+            addLog,
+            (status) => setBackendStatus(status)
+        );
+    }
+
+    return () => {
+        // Cleanup Docker Session on unmount or change
+        if (selectedInterpreter?.type === 'docker') {
+            dockerClient.disconnect();
+            setBackendStatus('');
+        }
+    };
+  }, [selectedInterpreter, selectedLanguage]);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
@@ -114,8 +137,21 @@ const App: React.FC = () => {
 
     setIsRunning(true);
     handleClearLogs();
-    await new Promise(r => setTimeout(r, 10));
 
+    // DOCKER BACKEND EXECUTION
+    if (selectedInterpreter.type === 'docker') {
+        // No wait time needed usually, but good for UI feedback
+        await new Promise(r => setTimeout(r, 100));
+        dockerClient.runCode(
+            code, 
+            selectedInterpreter.extension || 'txt', 
+            selectedInterpreter.entryCommand || 'cat'
+        );
+        setIsRunning(false);
+        return;
+    }
+
+    // BROWSER EXECUTION
     if (selectedInterpreter.type === 'browser') {
       setTimeout(() => {
         if (signal.aborted) return setIsRunning(false);
@@ -127,7 +163,11 @@ const App: React.FC = () => {
         executeUserCode(code, rootEl, addLog, selectedLanguage.id, selectedInterpreter.id);
         setIsRunning(false);
       }, 50);
-    } else {
+      return;
+    } 
+    
+    // CLOUD / AI SIMULATION
+    else {
       const rootEl = getVisualRoot();
       if (rootEl) rootEl.innerHTML = '';
       
@@ -172,6 +212,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isLiveMode || !selectedInterpreter) return;
+    // Don't auto-run docker repeatedly, only browser/sim modes
+    if (selectedInterpreter.type === 'docker') return;
+
     const delay = selectedInterpreter.type === 'browser' ? 800 : 2500;
     const timer = setTimeout(() => { if (!isRunningRef.current) handleRun() }, delay);
     return () => clearTimeout(timer);
@@ -242,6 +285,15 @@ const App: React.FC = () => {
             <span className="text-[10px] text-gray-500 dark:text-white/40 font-mono hidden sm:inline-block">{selectedInterpreter.name}</span>
           </div>
         </div>
+
+        {/* Backend Status Indicator */}
+        {selectedInterpreter.type === 'docker' && (
+             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5">
+                <Container size={12} className={backendStatus.includes('Ready') ? 'text-emerald-500' : 'text-amber-500 animate-pulse'} />
+                <span className="text-[10px] font-mono text-gray-600 dark:text-gray-300">{backendStatus || 'Disconnected'}</span>
+             </div>
+        )}
+
         <div className="flex items-center gap-2">
           <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
              <Menu size={12} />

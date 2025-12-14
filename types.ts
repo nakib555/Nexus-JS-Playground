@@ -1,8 +1,11 @@
+import React from 'react';
+
 export enum LogType {
   INFO = 'info',
   ERROR = 'error',
   WARN = 'warn',
-  SUCCESS = 'success'
+  SUCCESS = 'success',
+  SYSTEM = 'system'
 }
 
 export interface LogEntry {
@@ -24,7 +27,7 @@ export interface ExecutionContext {
   root: HTMLElement | null;
 }
 
-export type ExecutionMode = 'browser' | 'cloud';
+export type ExecutionMode = 'browser' | 'cloud' | 'docker';
 
 export interface Interpreter {
   id: string;
@@ -32,6 +35,10 @@ export interface Interpreter {
   type: ExecutionMode;
   version: string;
   description: string;
+  // New fields for Docker backend
+  dockerImage?: string;
+  extension?: string;
+  entryCommand?: string;
 }
 
 export interface Language {
