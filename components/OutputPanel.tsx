@@ -29,6 +29,14 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
   const renderValue = () => {
     switch (type) {
       case 'string':
+        // Detect Base64 Images
+        if (value.startsWith('data:image/')) {
+            return (
+                <div className="mt-1 mb-2 inline-block">
+                    <img src={value} alt="Console Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm" />
+                </div>
+            );
+        }
         return <span className="text-orange-600 dark:text-orange-300 break-all whitespace-pre-wrap">"{value}"</span>;
       case 'number':
         return <span className="text-blue-600 dark:text-cyan-300 font-bold">{value}</span>;

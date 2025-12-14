@@ -21,6 +21,11 @@ const io = new Server(server, {
 // Connect to Docker Daemon (socket file)
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
+// Health check for Render
+app.get('/', (req, res) => {
+  res.send('Nexus Backend Active');
+});
+
 // Store active containers: Map<SocketID, ContainerID>
 const activeContainers = new Map();
 
