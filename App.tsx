@@ -67,6 +67,7 @@ const App: React.FC = () => {
 
     return () => {
         // Cleanup Docker Session on unmount or change
+        // This ensures containers are destroyed when the component unmounts or interpreter changes
         if (selectedInterpreter?.type === 'docker') {
             dockerClient.disconnect();
             setBackendStatus('');
@@ -85,6 +86,11 @@ const App: React.FC = () => {
   };
 
   const handleBackToSelection = () => {
+    // Explicitly disconnect if it was a docker session to trigger backend cleanup
+    if (selectedInterpreter?.type === 'docker') {
+      dockerClient.disconnect();
+    }
+    
     setSelectedLanguage(null);
     setSelectedInterpreter(null);
     setLogs([]);

@@ -6,15 +6,14 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const Docker = require('dockerode');
-const fs = require('fs');
-const path = require('path');
-const { Stream } = require('stream');
 
 const app = express();
 const server = http.createServer(app);
+
+// Allow specific origins in production, or * for dev
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins for the playground
+    origin: process.env.FRONTEND_URL || "*",
     methods: ["GET", "POST"]
   }
 });
@@ -22,88 +21,121 @@ const io = new Server(server, {
 // Connect to Docker Daemon (socket file)
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
-// Store active containers: { socketId: containerId }
+// Store active containers: Map<SocketID, ContainerID>
 const activeContainers = new Map();
 
+// Helper to safely clean up a container
+const cleanupContainer = async (socketId) => {
+  const containerId = activeContainers.get(socketId);
+  if (!containerId) return;
+
+  try {
+    const container = docker.getContainer(containerId);
+    const data = await container.inspect();
+    
+    if (data.State.Running) {
+      console.log(`[${socketId}] Killing container ${containerId.substring(0, 8)}...`);
+      await container.kill(); // Kill is faster than stop
+    }
+    
+    // AutoRemove is set on creation, but we double check or try removal just in case
+    try {
+      await container.remove({ force: true });
+    } catch (e) { 
+      // Ignore 404 if it's already gone due to AutoRemove
+      if (e.statusCode !== 404) console.error(`[${socketId}] Remove Error:`, e.message);
+    }
+    
+    console.log(`[${socketId}] Container cleaned up.`);
+  } catch (err) {
+    if (err.statusCode !== 404) {
+      console.error(`[${socketId}] Cleanup failed:`, err.message);
+    }
+  } finally {
+    activeContainers.delete(socketId);
+  }
+};
+
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  console.log(`[${socket.id}] Client connected`);
 
   // 1. Initialize Session: Create a container
   socket.on('init-session', async ({ language, image }) => {
     try {
-      console.log(`[${socket.id}] Initializing ${language} (${image})`);
-      
-      // Cleanup existing if any
+      // Security measure: Cleanup any existing session for this socket first
       if (activeContainers.has(socket.id)) {
         await cleanupContainer(socket.id);
       }
 
-      // Check if image exists, pull if not (simplified)
-      // In production, you might want to pre-pull images
-      
+      console.log(`[${socket.id}] Spawning ${language} (${image})...`);
+
+      // Create sibling container
       const container = await docker.createContainer({
         Image: image,
-        Cmd: ['/bin/sh', '-c', 'while true; do sleep 1000; done'], // Keep alive
+        // Keep container alive with a minimal footprint
+        Cmd: ['/bin/sh', '-c', 'while true; do sleep 1000; done'], 
         Tty: false,
-        OpenStdin: true,
+        OpenStdin: true, // Keep stdin open for streaming input if needed
         HostConfig: {
-            Memory: 512 * 1024 * 1024, // Limit to 512MB
+            Memory: 512 * 1024 * 1024, // Hard limit: 512MB
             CpuPeriod: 100000,
-            CpuQuota: 50000, // Limit to 50% CPU
-            AutoRemove: true, // Automatically remove when stopped
-            NetworkMode: 'none' // No internet access for security
+            CpuQuota: 50000, // Hard limit: 50% of 1 CPU Core
+            AutoRemove: true, // Docker automatically deletes filesystem on exit
+            NetworkMode: 'none', // SANDBOX: No internet access
+            // PidsLimit: 50 // Prevent fork bombs
         }
       });
 
       await container.start();
-      activeContainers.set(socket.id, container);
+      activeContainers.set(socket.id, container.id);
       
       socket.emit('session-ready', { containerId: container.id });
-      console.log(`[${socket.id}] Container started: ${container.id}`);
+      console.log(`[${socket.id}] Ready: ${container.id.substring(0, 8)}`);
 
     } catch (err) {
       console.error(`[${socket.id}] Init Error:`, err);
-      socket.emit('error', 'Failed to initialize container: ' + err.message);
+      socket.emit('error', 'Failed to initialize environment: ' + err.message);
     }
   });
 
   // 2. Run Code
   socket.on('run-code', async ({ code, extension, entryCommand }) => {
-    const container = activeContainers.get(socket.id);
-    if (!container) {
-      return socket.emit('error', 'No active container session');
+    const containerId = activeContainers.get(socket.id);
+    if (!containerId) {
+      return socket.emit('error', 'Session expired. Please reload.');
     }
 
+    const container = docker.getContainer(containerId);
+
     try {
-      // Create a temporary file inside the container
-      // We use 'exec' to write the file because we don't share volumes
-      // Escaping code for echo is tricky, so we use base64
+      // Step A: Write code to file inside container
+      // Using base64 avoids shell escaping issues with special characters in code
       const b64Code = Buffer.from(code).toString('base64');
       const filename = `/tmp/code.${extension}`;
       
-      // Write file command
       const writeCmd = `echo "${b64Code}" | base64 -d > ${filename}`;
       
-      // Setup Execution
       const execWrite = await container.exec({
         Cmd: ['sh', '-c', writeCmd],
         AttachStdout: false,
         AttachStderr: true
       });
-      await execWrite.start({}); // Wait for write to finish
+      await execWrite.start({}); 
 
-      // Run code command (e.g., "python3 /tmp/code.py")
-      // If C++, entryCommand is complex: "g++ ... && ./app"
+      // Step B: Execute the run command
+      // Construct command: e.g., "python3 /tmp/code.py" or "go run /tmp/code.go"
       let finalCommand = entryCommand;
+      
       if (finalCommand.includes('/tmp/code')) {
-          // Command already includes the file path (e.g. C++ compilation)
-          // Ensure we use the correct extension in the command if needed, but client usually sends full string
-          finalCommand = finalCommand.replace('code.cpp', `code.${extension}`); 
+          // If the command template already has the path (e.g., C++ compilation logic)
+          // Ensure extension matches
+          finalCommand = finalCommand.replace(/code\.\w+/, `code.${extension}`); 
       } else {
+          // Standard interpreters
           finalCommand = `${entryCommand} ${filename}`;
       }
 
-      console.log(`[${socket.id}] Running: ${finalCommand}`);
+      console.log(`[${socket.id}] Executing: ${finalCommand}`);
 
       const exec = await container.exec({
         Cmd: ['sh', '-c', finalCommand],
@@ -113,14 +145,15 @@ io.on('connection', (socket) => {
 
       const stream = await exec.start({});
       
-      // Dockerode returns a multiplexed stream. We need to demux it.
+      // Demultiplex stream to separate stdout and stderr
       container.modem.demuxStream(stream, {
         write: (chunk) => socket.emit('output', { stream: 'stdout', data: chunk.toString() })
       }, {
         write: (chunk) => socket.emit('output', { stream: 'stderr', data: chunk.toString() })
       });
 
-      // Monitor exit code (polling exec instance)
+      // Step C: Monitor Process Exit
+      // Dockerode stream doesn't inherently emit exit code, so we inspect the exec instance
       const checkExit = setInterval(async () => {
           try {
             const inspect = await exec.inspect();
@@ -128,37 +161,31 @@ io.on('connection', (socket) => {
                 clearInterval(checkExit);
                 socket.emit('exit', inspect.ExitCode);
             }
-          } catch(e) { clearInterval(checkExit); }
-      }, 500);
+          } catch(e) { 
+            clearInterval(checkExit); 
+          }
+      }, 200);
 
     } catch (err) {
-      console.error(`[${socket.id}] Run Error:`, err);
+      console.error(`[${socket.id}] Execution Error:`, err);
       socket.emit('error', 'Execution failed: ' + err.message);
     }
   });
 
-  // 3. Cleanup on Disconnect
+  // 3. Stop Session (Explicit)
+  socket.on('stop-session', async () => {
+     await cleanupContainer(socket.id);
+     socket.emit('session-stopped');
+  });
+
+  // 4. Disconnect (Implicit Cleanup)
   socket.on('disconnect', async () => {
     console.log(`[${socket.id}] Disconnected`);
     await cleanupContainer(socket.id);
   });
 });
 
-async function cleanupContainer(socketId) {
-  const container = activeContainers.get(socketId);
-  if (container) {
-    try {
-      console.log(`[${socketId}] Stopping container...`);
-      await container.stop(); // AutoRemove is set, so it deletes itself
-      activeContainers.delete(socketId);
-    } catch (err) {
-      // Container might already be stopped
-      console.log(`[${socketId}] Cleanup warning: ${err.message}`);
-    }
-  }
-}
-
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
+  console.log(`Backend listening on port ${PORT}`);
 });

@@ -1,7 +1,9 @@
 import { io, Socket } from "socket.io-client";
 import { LogType } from "../types";
 
-const BACKEND_URL = "http://localhost:3001"; // Assumes backend runs locally
+// Dynamic Backend URL based on environment
+// Falls back to localhost for local development
+const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || "http://localhost:3001";
 
 class DockerClient {
   private socket: Socket | null = null;
@@ -16,34 +18,36 @@ class DockerClient {
     onLog: (type: LogType, messages: any[]) => void,
     onStatusChange: (status: string) => void
   ) {
-    this.disconnect(); // Ensure clean state
+    this.disconnect(); // Ensure clean state before new connection
+    
     this.onLog = onLog;
     this.onStatusChange = onStatusChange;
 
-    this.onStatusChange('Connecting to Docker Backend...');
+    this.onStatusChange('Connecting to Environment...');
 
     this.socket = io(BACKEND_URL, {
       transports: ['websocket'],
-      reconnectionAttempts: 3
+      reconnectionAttempts: 5,
+      timeout: 10000,
     });
 
     this.socket.on("connect", () => {
-      this.onStatusChange?.('Initializing Container...');
+      this.onStatusChange?.('Booting Container...');
       // Request session creation
       this.socket?.emit("init-session", { language, image });
     });
 
     this.socket.on("session-ready", (data) => {
-      this.onStatusChange?.(`Container Ready (${data.containerId.substring(0, 8)})`);
-      this.onLog?.(LogType.SYSTEM, [`Container started: ${image}`]);
+      this.onStatusChange?.(`Ready (${data.containerId.substring(0, 8)})`);
+      this.onLog?.(LogType.SYSTEM, [`Environment ready: ${image}`]);
     });
 
     this.socket.on("output", (data) => {
       // stream: 'stdout' | 'stderr'
       const type = data.stream === 'stderr' ? LogType.ERROR : LogType.INFO;
-      // Clean up raw output slightly
+      // Clean up raw output slightly (remove null bytes)
       const text = data.data.replace(/\u0000/g, ''); 
-      if (text.trim()) {
+      if (text) {
         this.onLog?.(type, [text]);
       }
     });
@@ -54,12 +58,12 @@ class DockerClient {
     });
 
     this.socket.on("error", (err) => {
-      this.onLog?.(LogType.ERROR, [`Backend Error: ${err}`]);
+      this.onLog?.(LogType.ERROR, [`System Error: ${err}`]);
       this.onStatusChange?.('Connection Error');
     });
 
     this.socket.on("connect_error", (err) => {
-      this.onLog?.(LogType.ERROR, [`Failed to connect to backend at ${BACKEND_URL}. Is it running?`]);
+      console.error("Socket Connection Error:", err);
       this.onStatusChange?.('Connection Failed');
     });
   }
@@ -69,12 +73,17 @@ class DockerClient {
       this.onStatusChange?.('Running...');
       this.socket.emit("run-code", { code, extension, entryCommand });
     } else {
-      this.onLog?.(LogType.ERROR, ["Not connected to backend execution environment."]);
+      this.onLog?.(LogType.ERROR, ["Not connected to execution environment."]);
     }
   }
 
   public disconnect() {
     if (this.socket) {
+      // Explicitly tell backend to stop the session (kill container)
+      // purely as a courtesy, the disconnect event will also handle it.
+      if (this.socket.connected) {
+        this.socket.emit('stop-session');
+      }
       this.socket.disconnect();
       this.socket = null;
     }

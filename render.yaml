@@ -1,0 +1,33 @@
+services:
+  # The Backend Service (Docker Controller)
+  # Note: Standard Render Web Services do not support mounting /var/run/docker.sock.
+  # This configuration assumes a custom environment or a provider that supports sibling containers.
+  - type: web
+    name: nexus-backend
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: FRONTEND_URL
+        fromService:
+          type: static
+          name: nexus-frontend
+          property: url
+
+  # The Frontend Service (React App)
+  - type: static
+    name: nexus-frontend
+    env: node
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_BACKEND_URL
+        fromService:
+          type: web
+          name: nexus-backend
+          property: url
