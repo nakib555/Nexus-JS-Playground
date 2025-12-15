@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server, Cpu, Wifi } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server, Cpu, Wifi, Zap, Radio } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [mobileActiveTab, setMobileActiveTab] = useState<MobileTab>('editor');
   
   const [isRunning, setIsRunning] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Disconnected');
 
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
@@ -65,6 +66,7 @@ const App: React.FC = () => {
     setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
     setLogs([]);
     setHasVisualContent(false);
+    setIsLiveMode(false);
 
     if (interpreter.type === 'docker' && interpreter.dockerImage) {
         setConnectionStatus('Connecting...');
@@ -87,6 +89,7 @@ const App: React.FC = () => {
     setMobileActiveTab('editor');
     setIsRunning(false);
     setHasVisualContent(false);
+    setIsLiveMode(false);
     if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -120,13 +123,11 @@ const App: React.FC = () => {
     return document.getElementById(isMobile ? 'visual-root-mobile' : 'visual-root-desktop');
   }, []);
 
-  const handleRun = useCallback(async () => {
+  const handleRun = useCallback(async (isAutoRun = false) => {
     if (!selectedLanguage || !selectedInterpreter) return;
 
-    // Switch to console or preview automatically on mobile if running
-    if (window.innerWidth < 768) {
-       // We can anticipate; if code has "visual" intent, switch to preview, else console.
-       // For now, let's default to Console, and if visual content detected, switch to Preview
+    // Switch to console or preview automatically on mobile if running (only if not auto-run to avoid jumping)
+    if (window.innerWidth < 768 && !isAutoRun) {
        setMobileActiveTab('console');
     }
 
@@ -145,10 +146,13 @@ const App: React.FC = () => {
         const rootEl = getVisualRoot();
         if (rootEl) {
             setHasVisualContent(true);
-            if (window.innerWidth < 768) setMobileActiveTab('preview');
+            if (window.innerWidth < 768 && !isAutoRun) setMobileActiveTab('preview');
             executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => {
                 setHasVisualContent(hasContent);
-                if (hasContent && window.innerWidth < 768) setMobileActiveTab('preview');
+                // Only switch tab if we detect content and it's a manual run or we are already in preview
+                if (hasContent && window.innerWidth < 768 && (!isAutoRun || mobileActiveTab === 'preview')) {
+                    setMobileActiveTab('preview');
+                }
             });
         }
         setIsRunning(false);
@@ -171,8 +175,7 @@ const App: React.FC = () => {
 
             // Handle Library Installation Generically
             if (libs.length > 0 && selectedInterpreter.installCommand) {
-                addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
-                addLog(LogType.SYSTEM, [`[System] Installing dependencies...`]);
+                if (!isAutoRun) addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
                 
                 let installCmd = selectedInterpreter.installCommand;
                 // Replace placeholder if exists, otherwise append
@@ -189,7 +192,7 @@ const App: React.FC = () => {
             setTimeout(() => setIsRunning(false), 1000);
         } else {
             // AI Runtime Fallback
-            addLog(LogType.SYSTEM, [`[Nexus] Backend unavailable. Switching to AI Runtime (Simulation)...`]);
+            if (!isAutoRun) addLog(LogType.SYSTEM, [`[Nexus] Backend unavailable. Switching to AI Runtime (Simulation)...`]);
             
             try {
                 await executeWithAI(
@@ -199,7 +202,7 @@ const App: React.FC = () => {
                     addLog,
                     (htmlContent) => {
                         setHasVisualContent(true);
-                        if (window.innerWidth < 768) setMobileActiveTab('preview');
+                        if (window.innerWidth < 768 && !isAutoRun) setMobileActiveTab('preview');
                         const rootEl = getVisualRoot();
                         if (rootEl) {
                              executeUserCode(htmlContent, rootEl, addLog, 'html');
@@ -217,7 +220,24 @@ const App: React.FC = () => {
         }
     }
 
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus]);
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus, mobileActiveTab]);
+
+  // Live Run Effect
+  useEffect(() => {
+    if (!isLiveMode) return;
+    
+    // Faster debounce for browser runtime, slower for docker/AI to save resources
+    const debounceMs = selectedInterpreter?.type === 'browser' ? 800 : 2500;
+    
+    const timer = setTimeout(() => {
+        // Only run if there is code
+        if (code.trim()) {
+            handleRun(true);
+        }
+    }, debounceMs);
+
+    return () => clearTimeout(timer);
+  }, [code, isLiveMode, handleRun, selectedInterpreter]);
 
   const handleReset = () => {
     if (selectedLanguage && window.confirm("Reset code to default example?")) {
@@ -253,7 +273,8 @@ const App: React.FC = () => {
   }, [handleRun]);
 
   const commands: CommandType[] = [
-    { id: 'run', name: 'Run Code', onSelect: handleRun, icon: <Play size={16}/>, section: 'Actions', shortcut:['⌘', 'Enter'] },
+    { id: 'run', name: 'Run Code', onSelect: () => handleRun(), icon: <Play size={16}/>, section: 'Actions', shortcut:['⌘', 'Enter'] },
+    { id: 'live', name: 'Toggle Live Mode', onSelect: () => setIsLiveMode(v => !v), icon: <Zap size={16}/>, section: 'Actions' },
     { id: 'ai', name: 'AI Architect', onSelect: () => setIsAIModalOpen(true), icon: <Sparkles size={16}/>, section: 'Actions' },
     { id: 'reset', name: 'Reset Code', onSelect: handleReset, icon: <RotateCcw size={16}/>, section: 'Actions' },
     { id: 'clear', name: 'Clear Console', onSelect: handleClearLogs, icon: <Terminal size={16}/>, section: 'Actions' },
@@ -305,8 +326,8 @@ const App: React.FC = () => {
             }
             <span className={`text-[10px] font-mono ${
                 selectedInterpreter.type === 'docker' 
-                    ? (connectionStatus.includes('Ready') ? "text-emerald-700 dark:text-emerald-300" : "text-purple-700 dark:text-purple-300") 
-                    : "text-indigo-700 dark:text-indigo-300"
+                    ? (connectionStatus.includes('Ready') ? connectionStatus : 'AI Runtime') 
+                    : 'text-indigo-700 dark:text-indigo-300'
             }`}>
                {selectedInterpreter.type === 'docker' 
                    ? (connectionStatus.includes('Ready') ? connectionStatus : 'AI Runtime') 
@@ -315,12 +336,27 @@ const App: React.FC = () => {
          </div>
 
         <div className="flex items-center gap-2">
+          {/* Live Mode Toggle */}
+          <button 
+             onClick={() => setIsLiveMode(!isLiveMode)}
+             className={`flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md text-xs font-medium transition-all border ${
+                 isLiveMode 
+                     ? 'bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/30' 
+                     : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
+             }`}
+             title="Toggle Live Execution"
+          >
+             {isLiveMode ? <Radio size={14} className="animate-pulse" /> : <Zap size={14} />}
+             <span className="hidden md:inline">{isLiveMode ? 'Live' : 'Live'}</span>
+          </button>
+
           <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
              <Menu size={16} className="md:w-3 md:h-3" />
              <span className="hidden md:inline">Commands</span>
              <kbd className="hidden md:inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-white dark:bg-black/50 border border-gray-300 dark:border-white/20">⌘P</kbd>
           </button>
-          <button onClick={handleRun} disabled={isRunning} className={`flex items-center gap-2 px-4 py-2 md:py-1.5 rounded-md font-semibold text-xs transition-all shadow-lg min-w-[80px] sm:min-w-[90px] justify-center ${isRunning ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'}`}>
+          
+          <button onClick={() => handleRun()} disabled={isRunning} className={`flex items-center gap-2 px-4 py-2 md:py-1.5 rounded-md font-semibold text-xs transition-all shadow-lg min-w-[80px] sm:min-w-[90px] justify-center ${isRunning ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'}`}>
              {isRunning ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <Play size={14} fill="currentColor" className="md:w-3 md:h-3" />}
              <span>Run</span>
           </button>
@@ -337,7 +373,18 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="hidden md:flex w-full h-full">
-           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10"><CodeEditor code={code} onChange={setCode} language={selectedLanguage} /></div>
+           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10">
+                <CodeEditor code={code} onChange={setCode} language={selectedLanguage} />
+                {isLiveMode && (
+                    <div className="absolute top-2 right-4 pointer-events-none z-20 flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 backdrop-blur">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
+                        <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Live</span>
+                    </div>
+                )}
+           </div>
            
            {/* Enhanced Desktop Resizer */}
            <div 
@@ -376,6 +423,7 @@ const App: React.FC = () => {
       <footer className="shrink-0 hidden md:flex h-7 bg-white dark:bg-[#050505] border-t border-gray-200 dark:border-white/10 px-3 items-center justify-between text-[10px] text-gray-500 select-none z-40 transition-colors">
         <div className="flex items-center gap-3">
            <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></div><span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Executing...' : 'Ready'}</span></div>
+           {isLiveMode && <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div><span className="text-red-500 font-medium">Live Mode Active</span></div>}
         </div>
         <div className="flex items-center gap-2">
             <button onClick={() => setIsCommandPaletteOpen(true)} className="text-gray-400 dark:text-gray-600 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">Press <kbd className="inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-gray-200 dark:bg-black/50 border border-gray-300 dark:border-white/20 mx-0.5">⌘P</kbd> for commands</button>
