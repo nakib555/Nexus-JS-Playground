@@ -100,7 +100,7 @@ const App: React.FC = () => {
     if (isDragging && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const newWidth = ((e.clientX - rect.left) / rect.width) * 100;
-      if (newWidth > 25 && newWidth < 75) setEditorWidth(newWidth);
+      if (newWidth > 20 && newWidth < 80) setEditorWidth(newWidth);
     }
   }, [isDragging]);
 
@@ -326,19 +326,39 @@ const App: React.FC = () => {
         </div>
         <div className="hidden md:flex w-full h-full">
            <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10"><CodeEditor code={code} onChange={setCode} language={selectedLanguage} /></div>
-           <div className="w-px bg-gray-200 dark:bg-white/10 hover:bg-indigo-500 dark:hover:bg-indigo-500 cursor-col-resize relative z-20 transition-colors group flex flex-col justify-center items-center" onMouseDown={startResize}>
+           
+           {/* Enhanced Desktop Resizer */}
+           <div 
+             className="w-1 bg-gray-100 dark:bg-black border-l border-r border-gray-200 dark:border-white/5 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 cursor-col-resize relative z-20 transition-colors group flex flex-col justify-center items-center" 
+             onMouseDown={startResize}
+           >
               <div className="absolute inset-y-0 -left-2 -right-2 z-30" />
-              <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full group-hover:bg-indigo-500 dark:group-hover:bg-indigo-400 transition-colors" />
            </div>
+
            <div className="flex-1 min-w-0 bg-gray-50 dark:bg-[#030304]"><OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-desktop" hasVisualContentOverride={hasVisualContent} /></div>
         </div>
       </main>
 
-      <nav className="shrink-0 md:hidden h-16 bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center z-50 pb-[env(safe-area-inset-bottom)]">
-         <button onClick={() => setMobileActiveTab('editor')} className={`flex flex-col items-center justify-center gap-1 h-full ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}><Code2 size={20} /><span className="text-[10px] font-medium">Code</span></button>
-         <button onClick={() => setMobileActiveTab('preview')} className={`flex flex-col items-center justify-center gap-1 h-full ${mobileActiveTab === 'preview' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}><Monitor size={20} /><span className="text-[10px] font-medium">Preview</span></button>
-         <button onClick={() => setMobileActiveTab('console')} className={`relative flex flex-col items-center justify-center gap-1 h-full ${mobileActiveTab === 'console' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}><Terminal size={20} /><span className="text-[10px] font-medium">Console</span>{logs.length > 0 && <span className="absolute top-2 right-4 w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>}</button>
-         <button onClick={() => setIsAIModalOpen(true)} className="flex flex-col items-center justify-center gap-1 h-full text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400"><Sparkles size={20} /><span className="text-[10px] font-medium">AI</span></button>
+      {/* Modern Mobile Navigation */}
+      <nav className="shrink-0 md:hidden h-[60px] bg-white/90 dark:bg-[#0A0A0A]/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center z-50 pb-[env(safe-area-inset-bottom)] px-2 gap-1">
+         <button onClick={() => setMobileActiveTab('editor')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+            <Code2 size={20} className="stroke-[1.5]" />
+            <span className="text-[10px] font-medium">Code</span>
+         </button>
+         <button onClick={() => setMobileActiveTab('preview')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors ${mobileActiveTab === 'preview' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+            <Monitor size={20} className="stroke-[1.5]" />
+            <span className="text-[10px] font-medium">Preview</span>
+         </button>
+         <button onClick={() => setMobileActiveTab('console')} className={`relative flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors ${mobileActiveTab === 'console' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+            <Terminal size={20} className="stroke-[1.5]" />
+            <span className="text-[10px] font-medium">Console</span>
+            {logs.length > 0 && <span className="absolute top-2 right-6 md:right-4 w-2 h-2 bg-indigo-500 rounded-full animate-pulse border border-white dark:border-black"></span>}
+         </button>
+         <button onClick={() => setIsAIModalOpen(true)} className="flex flex-col items-center justify-center gap-1 h-full rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+            <Sparkles size={20} className="stroke-[1.5]" />
+            <span className="text-[10px] font-medium">AI</span>
+         </button>
       </nav>
 
       <footer className="shrink-0 hidden md:flex h-7 bg-white dark:bg-[#050505] border-t border-gray-200 dark:border-white/10 px-3 items-center justify-between text-[10px] text-gray-500 select-none z-40 transition-colors">

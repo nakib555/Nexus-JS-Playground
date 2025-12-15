@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LogEntry, LogType } from '../types';
-import { Terminal, Box, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Minimize2, Split, GripVertical, FunctionSquare, Table } from 'lucide-react';
+import { Terminal, Box, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Minimize2, Split, GripVertical, FunctionSquare, Table, GripHorizontal } from 'lucide-react';
 
 interface OutputPanelProps {
   logs: LogEntry[];
@@ -265,21 +265,40 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     };
   }, [resizeVertical, stopResizeVertical]);
 
+  const LayoutButton = ({ mode, icon: Icon, label }: { mode: 'auto' | 'split' | 'visual' | 'console', icon: any, label: string }) => (
+    <button 
+      onClick={() => setLayoutMode(mode)} 
+      className={`
+        flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all
+        ${layoutMode === mode 
+            ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm ring-1 ring-black/5 dark:ring-white/10' 
+            : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
+        }
+      `}
+      title={label}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      <span className="hidden xl:inline">{label}</span>
+    </button>
+  );
+
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-[#030304] relative transition-colors overflow-hidden">
       {!mobileView && (
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-white/50 dark:bg-black/20 px-3 h-9 shrink-0 transition-colors z-30 backdrop-blur-sm">
-          <div className="flex items-center gap-2 text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-            {layoutMode === 'auto' ? <span className="flex items-center gap-1 text-indigo-500"><Layout className="w-3 h-3"/> Auto</span> : <span className="text-gray-400">Manual</span>}
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 px-3 h-10 shrink-0 backdrop-blur-sm z-30">
+          
+          <div className="flex items-center gap-1 p-0.5 bg-gray-200/50 dark:bg-white/5 rounded-lg border border-gray-200/50 dark:border-white/5">
+             <LayoutButton mode="auto" icon={Layout} label="Auto" />
+             <LayoutButton mode="visual" icon={Maximize2} label="Visual" />
+             <LayoutButton mode="split" icon={Split} label="Split" />
+             <LayoutButton mode="console" icon={Terminal} label="Console" />
           </div>
+
           <div className="flex items-center gap-1">
-             <button onClick={() => setLayoutMode('auto')} className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${layoutMode === 'auto' ? 'text-indigo-500' : 'text-gray-400'}`} title="Auto Adjust"><Layout className="w-3.5 h-3.5" /></button>
-            <div className="w-px h-3 bg-gray-300 dark:bg-white/10 mx-1" />
-            <button onClick={() => setLayoutMode('visual')} className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${layoutMode === 'visual' ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`} title="Maximize Visual"><Maximize2 className="w-3.5 h-3.5" /></button>
-            <button onClick={() => setLayoutMode('split')} className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${layoutMode === 'split' ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`} title="Split View"><Split className="w-3.5 h-3.5" /></button>
-            <button onClick={() => setLayoutMode('console')} className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${layoutMode === 'console' ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`} title="Maximize Console"><Terminal className="w-3.5 h-3.5" /></button>
-             <div className="w-px h-3 bg-gray-300 dark:bg-white/10 mx-1" />
-             <button onClick={onClearLogs} className="p-1 rounded hover:bg-red-500 hover:text-white text-gray-400 transition-colors" title="Clear Console"><Trash2 className="w-3.5 h-3.5" /></button>
+             <button onClick={onClearLogs} className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors" title="Clear Console">
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear</span>
+             </button>
           </div>
         </div>
       )}
@@ -292,9 +311,18 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
           </div>
         </div>
 
-        <div onMouseDown={startResizeVertical} className={`h-px bg-gray-200 dark:bg-white/10 w-full shrink-0 shadow-sm z-20 transition-all duration-300 group flex items-center justify-center relative ${effectiveLayout === 'split' ? 'opacity-100 cursor-row-resize' : 'opacity-0 h-0 border-none'}`}>
-          <div className="absolute inset-y-[-4px] w-full z-30"/>
-          <div className="h-1.5 w-8 bg-gray-300 dark:bg-white/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+        {/* Enhanced Vertical Resizer */}
+        <div 
+          onMouseDown={startResizeVertical} 
+          className={`
+            h-2 w-full shrink-0 z-20 transition-all duration-200 group flex items-center justify-center relative -my-1 cursor-row-resize
+            ${effectiveLayout === 'split' ? 'opacity-100' : 'opacity-0 h-0 pointer-events-none'}
+          `}
+        >
+          <div className="absolute inset-x-0 h-px bg-gray-200 dark:bg-white/10 group-hover:bg-indigo-500/50 dark:group-hover:bg-indigo-500/50 transition-colors" />
+          <div className="w-8 h-4 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              <GripHorizontal className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+          </div>
         </div>
 
         <div style={{ flexBasis: effectiveLayout === 'split' ? `${100 - visualHeight}%` : 'auto' }} className={`relative bg-gray-50 dark:bg-gray-950 flex flex-col transition-all duration-300 ease-in-out origin-bottom ${effectiveLayout === 'visual' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''} ${effectiveLayout === 'console' ? 'flex-1' : ''}`}>
