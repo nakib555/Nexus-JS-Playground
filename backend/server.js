@@ -7,7 +7,7 @@ const http = require('http');
 const { Server } = require("socket.io");
 const Docker = require('dockerode');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const os = require('os');
 
@@ -55,8 +55,8 @@ if (HAS_DOCKER) {
   try {
     docker = new Docker({ socketPath: DOCKER_SOCKET });
     console.log("✅ Docker detected. Using container isolation.");
-  } catch {
-    console.warn("⚠️ Docker init failed. Falling back to local execution.");
+  } catch (e) {
+    console.warn("⚠️ Docker init failed. Falling back to local execution.", e);
   }
 } else {
   console.log("ℹ️ Docker not found. Using local process execution.");
@@ -153,6 +153,7 @@ io.on('connection', (socket) => {
         activeSessions.set(socket.id, { type: 'docker', id: container.id });
         socket.emit('session-ready', { containerId: container.id, mode: 'docker' });
       } else {
+        socket.emit('output', { stream: 'stdout', data: `[System] Docker not available. Using local host shell execution.\n` });
         const localCmd = getLocalCommand(image);
         activeSessions.set(socket.id, { type: 'local', cmd: localCmd });
         socket.emit('session-ready', { containerId: 'local-env', mode: 'local' });
@@ -271,6 +272,49 @@ io.on('connection', (socket) => {
     } else {
       // Local Execution Fallback
       try {
+        // --- DEBUG DIAGNOSTICS START ---
+        const debugEnv = {
+            platform: process.platform,
+            arch: process.arch,
+            nodeVersion: process.version,
+            cwd: process.cwd(),
+            path: process.env.PATH || '',
+            user: process.env.USER || process.env.USERNAME || 'unknown',
+            tempDir: tempDir,
+            hasPython: false,
+            hasPython3: false,
+            hasNode: false
+        };
+
+        // Simple check for binaries
+        try { execSync('python --version', { stdio: 'ignore' }); debugEnv.hasPython = true; } catch(e){}
+        try { execSync('python3 --version', { stdio: 'ignore' }); debugEnv.hasPython3 = true; } catch(e){}
+        try { execSync('node --version', { stdio: 'ignore' }); debugEnv.hasNode = true; } catch(e){}
+
+        const debugMessage = `
+[DEBUG DIAGNOSTICS]
+----------------------------------------
+System: ${debugEnv.platform} (${debugEnv.arch})
+Node Runtime: ${debugEnv.nodeVersion}
+User: ${debugEnv.user}
+WorkDir: ${debugEnv.cwd}
+TempDir: ${debugEnv.tempDir}
+PATH:
+${debugEnv.path.split(path.delimiter).map(p => `  - ${p}`).join('\n')}
+
+Binaries:
+- python: ${debugEnv.hasPython ? 'FOUND' : 'MISSING'}
+- python3: ${debugEnv.hasPython3 ? 'FOUND' : 'MISSING'}
+- node: ${debugEnv.hasNode ? 'FOUND' : 'MISSING'}
+
+Execution:
+- Entry Command: ${entryCommand}
+- Target File: ${filePath}
+----------------------------------------
+`;
+        socket.emit('output', { stream: 'stdout', data: debugMessage });
+        // --- DEBUG DIAGNOSTICS END ---
+
         fs.writeFileSync(filePath, code);
         
         // Write user files to temp dir
