@@ -6,7 +6,7 @@
     <!-- Permissive CSP for Playground Environment -->
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; img-src * data: blob:; font-src * data:;">
     <title>Nexus JS Playground</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- PrismJS for Syntax Highlighting -->
@@ -40,196 +40,8 @@
       } else if (!window.process.env) {
         window.process.env = { NODE_ENV: 'development' };
       }
-
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            colors: {
-              gray: {
-                850: '#1f2937',
-                900: '#111827',
-                950: '#030712', 
-              },
-            },
-            animation: {
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'shimmer': 'shimmer 2s linear infinite',
-              'fade-in': 'fadeIn 0.3s ease-out forwards',
-            },
-            keyframes: {
-              shimmer: {
-                '0%': { backgroundPosition: '-200% 0' },
-                '100%': { backgroundPosition: '200% 0' },
-              },
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              }
-            }
-          },
-        },
-      }
     </script>
-    <style>
-      :root {
-        /* Light Mode Syntax & Theme */
-        --syntax-bg: #ffffff;
-        --syntax-comment: #6a737d;
-        --syntax-string: #0a3069;
-        --syntax-keyword: #d73a49;
-        --syntax-number: #005cc5;
-        --syntax-function: #6f42c1;
-        --syntax-builtin: #e36209;
-        --syntax-operator: #005cc5;
-        --syntax-punctuation: #24292e;
-        
-        --bg-body: #f8f9fa; /* Lighter gray */
-        --text-body: #111827;
-      }
-
-      html.dark {
-        /* Dark Mode Syntax & Theme */
-        --syntax-bg: #0C0C0C;
-        --syntax-comment: #777;
-        --syntax-string: #9eceff;
-        --syntax-keyword: #ff897a;
-        --syntax-number: #a2c7ff;
-        --syntax-function: #e0b4ff;
-        --syntax-builtin: #ffb86c;
-        --syntax-operator: #a2c7ff;
-        --syntax-punctuation: #8b949e;
-        
-        --bg-body: #0A0A0A; /* Richer black */
-        --text-body: #e2e8f0;
-      }
-
-      body {
-        background-color: var(--bg-body);
-        color: var(--text-body);
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        transition: background-color 0.3s ease, color 0.3s ease;
-        
-        /* Fix mobile viewport issues */
-        position: fixed;
-        inset: 0;
-        width: 100%;
-        height: 100dvh;
-        overflow: hidden;
-      }
-
-      html.dark body {
-        background: radial-gradient(ellipse 80% 50% at 50% -20%,rgba(120,119,198,0.2),hsla(0,0%,100%,0));
-        background-color: #0A0A0A;
-      }
-
-      /* CRITICAL FIX: Ensure root takes full height for Flex layout to work correctly */
-      #root {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-      }
-      
-      ::selection {
-        background: rgba(99, 102, 241, 0.3);
-        color: inherit;
-      }
-
-      /* Modern Thin Scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: rgba(156, 163, 175, 0.4); 
-        border-radius: 10px;
-        border: 2px solid transparent;
-        background-clip: content-box;
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border: 2px solid transparent;
-        background-clip: content-box; 
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: rgba(156, 163, 175, 0.6); 
-      }
-      .dark ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.3); 
-      }
-      ::-webkit-scrollbar-corner {
-        background: transparent;
-      }
-      
-      /* Visual Root Sandbox Styles */
-      #visual-root {
-        width: 100%;
-        height: 100%;
-        overflow: hidden; /* Iframe handles internal scrolling */
-        position: relative;
-        background-size: 24px 24px;
-        background-color: transparent;
-      }
-      
-      /* Grid background handled in CSS to switch with theme */
-      .visual-grid-bg {
-        background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.05) 1px, transparent 0);
-      }
-      .dark .visual-grid-bg {
-        background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
-      }
-
-      /* Prism Syntax Highlighting */
-      .token.comment, .token.prolog, .token.doctype, .token.cdata { color: var(--syntax-comment); font-style: italic; }
-      .token.string, .token.attr-value { color: var(--syntax-string); }
-      .token.keyword, .token.atrule, .token.control-flow { color: var(--syntax-keyword); }
-      .token.number, .token.boolean, .token.constant, .token.symbol { color: var(--syntax-number); }
-      .token.function, .token.class-name { color: var(--syntax-function); }
-      .token.builtin, .token.important, .token.regex, .token.variable { color: var(--syntax-builtin); }
-      .token.operator, .token.entity, .token.url { color: var(--syntax-operator); }
-      .token.punctuation { color: var(--syntax-punctuation); }
-      .token.property, .token.tag { color: var(--syntax-keyword); }
-      .token.attr-name { color: var(--syntax-builtin); }
-      
-      .token.bold { font-weight: bold; }
-      .token.italic { font-style: italic; }
-
-      /* Loader */
-      #loading-overlay {
-        position: fixed;
-        inset: 0;
-        background: var(--bg-body);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        transition: opacity 0.5s ease;
-      }
-      .loader {
-        width: 48px;
-        height: 48px;
-        border: 3px solid;
-        border-color: #6366f1;
-        border-bottom-color: transparent;
-        border-radius: 50%;
-        display: inline-block;
-        box-sizing: border-box;
-        animation: rotation 1s linear infinite;
-      }
-      @keyframes rotation {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    </style>
+    
   <script type="importmap">
 {
   "imports": {
@@ -245,7 +57,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="loading-overlay">
@@ -271,6 +82,5 @@
         setTimeout(() => { clearInterval(checkReact); removeLoader(); }, 3000);
       });
     </script>
-  <script type="module" src="/index.tsx"></script>
 </body>
 </html>

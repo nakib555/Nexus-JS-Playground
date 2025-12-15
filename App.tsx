@@ -1,13 +1,14 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server, Cpu, Wifi, Zap, Radio } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server, Cpu, Wifi, Zap, Radio, FolderOpen } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
 import { LanguageSelector } from './components/LanguageSelector';
 import { CommandPalette } from './components/CommandPalette';
 import { SettingsModal } from './components/SettingsModal';
+import { FileExplorer } from './components/FileExplorer';
 import { LANGUAGE_TEMPLATES } from './constants';
-import { LogEntry, LogType, Language, Interpreter, Command as CommandType } from './types';
+import { LogEntry, LogType, Language, Interpreter, Command as CommandType, VirtualFile } from './types';
 import { executeUserCode } from './utils/executor';
 import { dockerClient } from './utils/dockerClient';
 import { detectLibraries } from './utils/codeAnalysis';
@@ -22,6 +23,7 @@ const App: React.FC = () => {
   
   const [code, setCode] = useState<string>('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [files, setFiles] = useState<VirtualFile[]>([]);
   
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
@@ -33,6 +35,7 @@ const App: React.FC = () => {
   });
   
   const [editorWidth, setEditorWidth] = useState(55);
+  const [isFileExplorerOpen, setIsFileExplorerOpen] = useState(true);
   const [mobileActiveTab, setMobileActiveTab] = useState<MobileTab>('editor');
   
   const [isRunning, setIsRunning] = useState(false);
@@ -47,6 +50,7 @@ const App: React.FC = () => {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const executorCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -67,6 +71,7 @@ const App: React.FC = () => {
     setLogs([]);
     setHasVisualContent(false);
     setIsLiveMode(false);
+    setFiles([]); // Clear files on language switch
 
     if (interpreter.type === 'docker' && interpreter.dockerImage) {
         setConnectionStatus('Connecting...');
@@ -83,9 +88,15 @@ const App: React.FC = () => {
     if (selectedInterpreter?.type === 'docker') {
         dockerClient.disconnect();
     }
+    if (executorCleanupRef.current) {
+        executorCleanupRef.current();
+        executorCleanupRef.current = null;
+    }
+    
     setSelectedLanguage(null);
     setSelectedInterpreter(null);
     setLogs([]);
+    setFiles([]);
     setMobileActiveTab('editor');
     setIsRunning(false);
     setHasVisualContent(false);
@@ -113,6 +124,9 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('mousemove', resize);
       window.removeEventListener('mouseup', stopResize);
+      if (executorCleanupRef.current) {
+          executorCleanupRef.current();
+      }
     };
   }, [resize, stopResize]);
 
@@ -126,16 +140,19 @@ const App: React.FC = () => {
   const handleRun = useCallback(async (isAutoRun = false) => {
     if (!selectedLanguage || !selectedInterpreter) return;
 
-    // Switch to console or preview automatically on mobile if running (only if not auto-run to avoid jumping)
     if (window.innerWidth < 768 && !isAutoRun) {
        setMobileActiveTab('console');
     }
 
-    // Reset abort controller for new run
     if (abortControllerRef.current) {
         abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
+    
+    if (executorCleanupRef.current) {
+        executorCleanupRef.current();
+        executorCleanupRef.current = null;
+    }
 
     setIsRunning(true);
     handleClearLogs();
@@ -147,13 +164,14 @@ const App: React.FC = () => {
         if (rootEl) {
             setHasVisualContent(true);
             if (window.innerWidth < 768 && !isAutoRun) setMobileActiveTab('preview');
-            executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => {
+            // Execute and store the cleanup function
+            // Pass files to browser executor
+            executorCleanupRef.current = executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => {
                 setHasVisualContent(hasContent);
-                // Only switch tab if we detect content and it's a manual run or we are already in preview
                 if (hasContent && window.innerWidth < 768 && (!isAutoRun || mobileActiveTab === 'preview')) {
                     setMobileActiveTab('preview');
                 }
-            });
+            }, files);
         }
         setIsRunning(false);
         return;
@@ -168,17 +186,14 @@ const App: React.FC = () => {
             let finalCode = code;
             let command = selectedInterpreter.entryCommand || '';
 
-            // Prepend setup code if exists (e.g. Matplotlib patch)
             if (selectedInterpreter.setupCode) {
                 finalCode = selectedInterpreter.setupCode + '\n' + code;
             }
 
-            // Handle Library Installation Generically
             if (libs.length > 0 && selectedInterpreter.installCommand) {
                 if (!isAutoRun) addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
                 
                 let installCmd = selectedInterpreter.installCommand;
-                // Replace placeholder if exists, otherwise append
                 if (installCmd.includes('{libs}')) {
                     installCmd = installCmd.replace('{libs}', libs.join(' '));
                 } else {
@@ -188,7 +203,8 @@ const App: React.FC = () => {
                 command = `${installCmd} && ${command}`;
             }
 
-            dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command);
+            // Pass files to docker client
+            dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command, files);
             setTimeout(() => setIsRunning(false), 1000);
         } else {
             // AI Runtime Fallback
@@ -205,7 +221,8 @@ const App: React.FC = () => {
                         if (window.innerWidth < 768 && !isAutoRun) setMobileActiveTab('preview');
                         const rootEl = getVisualRoot();
                         if (rootEl) {
-                             executeUserCode(htmlContent, rootEl, addLog, 'html');
+                             const cleanup = executeUserCode(htmlContent, rootEl, addLog, 'html', undefined, undefined, files);
+                             executorCleanupRef.current = cleanup;
                         }
                     },
                     abortControllerRef.current?.signal
@@ -220,22 +237,17 @@ const App: React.FC = () => {
         }
     }
 
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus, mobileActiveTab]);
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus, mobileActiveTab, files]);
 
   // Live Run Effect
   useEffect(() => {
     if (!isLiveMode) return;
-    
-    // Faster debounce for browser runtime, slower for docker/AI to save resources
     const debounceMs = selectedInterpreter?.type === 'browser' ? 800 : 2500;
-    
     const timer = setTimeout(() => {
-        // Only run if there is code
         if (code.trim()) {
             handleRun(true);
         }
     }, debounceMs);
-
     return () => clearTimeout(timer);
   }, [code, isLiveMode, handleRun, selectedInterpreter]);
 
@@ -257,6 +269,42 @@ const App: React.FC = () => {
     }, 100);
   };
   
+  const handleFileUpload = useCallback(async (fileList: FileList) => {
+    const newFiles: VirtualFile[] = [];
+    
+    for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        try {
+            const buffer = await file.arrayBuffer();
+            const binary = new Uint8Array(buffer);
+            let binaryString = '';
+            for (let j = 0; j < binary.byteLength; j++) {
+                binaryString += String.fromCharCode(binary[j]);
+            }
+            const base64 = btoa(binaryString);
+            
+            newFiles.push({
+                id: Math.random().toString(36).substr(2, 9),
+                name: file.name,
+                content: base64,
+                size: file.size,
+                type: file.type || 'application/octet-stream',
+                lastModified: file.lastModified
+            });
+        } catch (e) {
+            console.error("Upload failed", e);
+            addLog(LogType.ERROR, [`Failed to upload ${file.name}`]);
+        }
+    }
+    
+    setFiles(prev => [...prev, ...newFiles]);
+    addLog(LogType.SYSTEM, [`Uploaded ${newFiles.length} file(s).`]);
+  }, [addLog]);
+
+  const handleFileDelete = useCallback((id: string) => {
+     setFiles(prev => prev.filter(f => f.id !== id));
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
@@ -267,6 +315,10 @@ const App: React.FC = () => {
              e.preventDefault();
              handleRun();
         }
+        if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+             e.preventDefault();
+             setIsFileExplorerOpen(v => !v);
+        }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -276,6 +328,7 @@ const App: React.FC = () => {
     { id: 'run', name: 'Run Code', onSelect: () => handleRun(), icon: <Play size={16}/>, section: 'Actions', shortcut:['⌘', 'Enter'] },
     { id: 'live', name: 'Toggle Live Mode', onSelect: () => setIsLiveMode(v => !v), icon: <Zap size={16}/>, section: 'Actions' },
     { id: 'ai', name: 'AI Architect', onSelect: () => setIsAIModalOpen(true), icon: <Sparkles size={16}/>, section: 'Actions' },
+    { id: 'files', name: 'Toggle Files', onSelect: () => setIsFileExplorerOpen(v => !v), icon: <FolderOpen size={16}/>, section: 'Navigation', shortcut:['⌘', 'B'] },
     { id: 'reset', name: 'Reset Code', onSelect: handleReset, icon: <RotateCcw size={16}/>, section: 'Actions' },
     { id: 'clear', name: 'Clear Console', onSelect: handleClearLogs, icon: <Terminal size={16}/>, section: 'Actions' },
     { id: 'settings', name: 'Connection Settings', onSelect: () => setIsSettingsOpen(true), icon: <Settings2 size={16}/>, section: 'General' },
@@ -312,7 +365,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Runtime Status Indicator */}
          <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full border transition-colors ${
              selectedInterpreter.type === 'docker' 
                 ? (connectionStatus.includes('Ready') 
@@ -336,7 +388,6 @@ const App: React.FC = () => {
          </div>
 
         <div className="flex items-center gap-2">
-          {/* Live Mode Toggle */}
           <button 
              onClick={() => setIsLiveMode(!isLiveMode)}
              className={`flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md text-xs font-medium transition-all border ${
@@ -348,6 +399,11 @@ const App: React.FC = () => {
           >
              {isLiveMode ? <Radio size={14} className="animate-pulse" /> : <Zap size={14} />}
              <span className="hidden md:inline">{isLiveMode ? 'Live' : 'Live'}</span>
+          </button>
+
+          <button onClick={() => setIsFileExplorerOpen(!isFileExplorerOpen)} className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-all ${isFileExplorerOpen ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400'}`}>
+             <FolderOpen size={14} />
+             <span className="hidden lg:inline">Files</span>
           </button>
 
           <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
@@ -373,7 +429,15 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="hidden md:flex w-full h-full">
-           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10">
+           <FileExplorer 
+              files={files} 
+              onUpload={handleFileUpload} 
+              onDelete={handleFileDelete}
+              isOpen={isFileExplorerOpen}
+              onToggle={() => setIsFileExplorerOpen(!isFileExplorerOpen)}
+           />
+           
+           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10 border-l border-gray-200 dark:border-white/5">
                 <CodeEditor code={code} onChange={setCode} language={selectedLanguage} />
                 {isLiveMode && (
                     <div className="absolute top-2 right-4 pointer-events-none z-20 flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 backdrop-blur">
@@ -386,7 +450,6 @@ const App: React.FC = () => {
                 )}
            </div>
            
-           {/* Enhanced Desktop Resizer */}
            <div 
              className="w-1 bg-gray-100 dark:bg-black border-l border-r border-gray-200 dark:border-white/5 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 cursor-col-resize relative z-20 transition-colors group flex flex-col justify-center items-center" 
              onMouseDown={startResize}
@@ -399,7 +462,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Modern Mobile Navigation */}
       <nav className="shrink-0 md:hidden h-[60px] bg-white/90 dark:bg-[#0A0A0A]/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center z-50 pb-[env(safe-area-inset-bottom)] px-2 gap-1 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
          <button onClick={() => setMobileActiveTab('editor')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors active:scale-95 duration-150 ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
             <Code2 size={20} className="stroke-[1.5]" />
@@ -424,6 +486,11 @@ const App: React.FC = () => {
         <div className="flex items-center gap-3">
            <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></div><span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Executing...' : 'Ready'}</span></div>
            {isLiveMode && <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div><span className="text-red-500 font-medium">Live Mode Active</span></div>}
+           <div className="h-3 w-px bg-gray-200 dark:bg-white/10"></div>
+           <div className="flex items-center gap-1">
+             <span className="text-gray-400">Files:</span>
+             <span className="font-mono text-gray-600 dark:text-gray-300">{files.length}</span>
+           </div>
         </div>
         <div className="flex items-center gap-2">
             <button onClick={() => setIsCommandPaletteOpen(true)} className="text-gray-400 dark:text-gray-600 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">Press <kbd className="inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-gray-200 dark:bg-black/50 border border-gray-300 dark:border-white/20 mx-0.5">⌘P</kbd> for commands</button>

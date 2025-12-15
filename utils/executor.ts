@@ -1,4 +1,4 @@
-import { LogType, LogEntry } from '../types';
+import { LogType, LogEntry, VirtualFile } from '../types';
 
 /**
  * Creates a safe execution environment using an Iframe.
@@ -11,8 +11,9 @@ export const executeUserCode = (
   onLog: (type: LogType, args: any[]) => void,
   languageId: string = 'javascript',
   interpreterId?: string,
-  onVisualChange?: (hasContent: boolean) => void
-) => {
+  onVisualChange?: (hasContent: boolean) => void,
+  files: VirtualFile[] = []
+): (() => void) => {
   // 1. Clear previous content to destroy the old context
   rootElement.innerHTML = '';
   
@@ -23,23 +24,65 @@ export const executeUserCode = (
   iframe.style.border = 'none';
   iframe.style.background = 'transparent'; 
   
-  // Allow scripts, forms, same-origin (for communication), etc.
-  iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-forms allow-same-origin allow-popups allow-downloads allow-pointer-lock');
+  // Remove 'allow-same-origin' to create an opaque origin.
+  iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-forms allow-popups allow-downloads allow-pointer-lock');
   
   rootElement.appendChild(iframe);
 
-  // 3. Setup Communication Bridge
-  const runId = Math.random().toString(36).substring(7);
-  const logHandlerName = `__nexus_log_${runId}`;
-  const visualHandlerName = `__nexus_visual_${runId}`;
-  
-  (window as any)[logHandlerName] = (type: LogType, args: any[]) => {
-    onLog(type, args);
+  // 3. Setup Communication Bridge using postMessage
+  const messageHandler = (event: MessageEvent) => {
+    // Only accept messages from this specific iframe
+    if (event.source !== iframe.contentWindow) return;
+
+    const data = event.data;
+    if (data && data.type === 'nexus-log') {
+        onLog(data.logType, data.args);
+    } else if (data && data.type === 'nexus-visual') {
+        if (onVisualChange) onVisualChange(data.hasContent);
+    }
   };
 
-  (window as any)[visualHandlerName] = (hasContent: boolean) => {
-    if (onVisualChange) onVisualChange(hasContent);
-  };
+  window.addEventListener('message', messageHandler);
+
+  // Prepare File System Shim
+  const filesMap = files.reduce((acc, f) => ({...acc, [f.name]: f.content}), {});
+  const filesJson = JSON.stringify(filesMap);
+
+  const fsShim = `
+    <script>
+       window.__NEXUS_FILES__ = ${filesJson};
+       
+       // Simple Virtual File System shim for Browser Runtime
+       window.fs = {
+         readFile: (path, encoding, cb) => {
+            if (typeof encoding === 'function') { cb = encoding; encoding = 'utf8'; }
+            try {
+               const content = window.fs.readFileSync(path, encoding);
+               cb(null, content);
+            } catch(e) { cb(e); }
+         },
+         readFileSync: (path, encoding) => {
+            const fileContent = window.__NEXUS_FILES__[path];
+            if (fileContent === undefined) {
+                throw new Error("ENOENT: no such file or directory, open '" + path + "'");
+            }
+            const binary = atob(fileContent);
+            if (!encoding || encoding === 'utf8' || encoding === 'utf-8') return binary;
+            return binary; 
+         },
+         writeFileSync: (path, content) => {
+            console.log('[System] Wrote to virtual file: ' + path);
+            // In a real implementation, we could postMessage this back to the main app to update the file list
+         },
+         exists: (path, cb) => {
+            cb(!!window.__NEXUS_FILES__[path]);
+         },
+         existsSync: (path) => {
+            return !!window.__NEXUS_FILES__[path];
+         }
+       };
+    </script>
+  `;
 
   // 4. Construct the HTML content with Console Interceptor & Visual Detector
   const consoleInterceptor = `
@@ -56,7 +99,6 @@ export const executeUserCode = (
             if (obj instanceof Map) return Array.from(obj.entries()).map(([k, v]) => [serialize(k, seen), serialize(v, seen)]);
 
             if (obj instanceof Element) {
-                // For elements, give a nice representation or just outerHTML if small
                 if (obj.outerHTML.length < 200) return obj.outerHTML;
                 return '[HTMLElement: ' + obj.tagName + ']';
             }
@@ -81,8 +123,6 @@ export const executeUserCode = (
 
         const sendLog = (type, args) => {
           try {
-             // We use a custom serializer to handle circular references and DOM nodes
-             // before sending to the parent. This ensures "any output" is viewable.
              const processedArgs = args.map(arg => {
                 try {
                     return serialize(arg);
@@ -91,9 +131,11 @@ export const executeUserCode = (
                 }
              });
              
-             if (window.parent && window.parent['${logHandlerName}']) {
-                window.parent['${logHandlerName}'](type, processedArgs);
-             }
+             window.parent.postMessage({
+                 type: 'nexus-log',
+                 logType: type,
+                 args: processedArgs
+             }, '*');
           } catch(e) { 
              console.error("Logger Error:", e);
           }
@@ -102,25 +144,21 @@ export const executeUserCode = (
         // --- Visual Change Detector ---
         let hasReportedVisual = false;
         const reportVisual = () => {
-            if (window.parent && window.parent['${visualHandlerName}']) {
-                window.parent['${visualHandlerName}'](true);
-            }
+            window.parent.postMessage({
+                type: 'nexus-visual',
+                hasContent: true
+            }, '*');
         };
 
         const checkVisualContent = () => {
-            // Check body children excluding scripts and this logic
             const body = document.body;
             if (!body) return;
             
-            // Heuristic: If body text is not empty, or if there are elements like Canvas, SVG, Img, Divs with size
             let hasContent = false;
-            
-            // Check for specific visible elements
             const visibleTags = ['CANVAS', 'SVG', 'IMG', 'VIDEO', 'IFRAME', 'BUTTON', 'INPUT', 'TABLE'];
             if (body.querySelector(visibleTags.join(','))) {
                 hasContent = true;
             } else {
-                 // Check deep text content, excluding scripts
                  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
                     acceptNode: function(node) {
                         if (node.parentNode.nodeName === 'SCRIPT' || node.parentNode.nodeName === 'STYLE') return NodeFilter.FILTER_REJECT;
@@ -137,21 +175,17 @@ export const executeUserCode = (
             }
         };
         
-        // Use MutationObserver to detect DOM changes
         const observer = new MutationObserver((mutations) => {
              checkVisualContent();
         });
         
         window.addEventListener('DOMContentLoaded', () => {
             observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-            checkVisualContent(); // Check initial
+            checkVisualContent(); 
         });
 
         // --- Overrides ---
-
         const originalConsole = console;
-        
-        // Timer storage for console.time/timeEnd polyfill
         const timers = new Map();
 
         window.console = {
@@ -164,22 +198,18 @@ export const executeUserCode = (
           table: (...args) => { originalConsole.table(...args); sendLog('table', args); },
           dir: (...args) => { originalConsole.dir(...args); sendLog('info', args); },
           clear: () => { },
-          
           assert: (condition, ...args) => { 
               originalConsole.assert(condition, ...args); 
               if (!condition) sendLog('error', ['Assertion failed:', ...args]); 
           },
-          
           count: (label = 'default') => { 
              originalConsole.count(label); 
              sendLog('info', [\`Count: \${label}\`]); 
           },
-
           time: (label = 'default') => {
             originalConsole.time(label);
             timers.set(label, performance.now());
           },
-
           timeEnd: (label = 'default') => {
             originalConsole.timeEnd(label);
             if (timers.has(label)) {
@@ -195,15 +225,8 @@ export const executeUserCode = (
         window.alert = (msg) => { sendLog('warn', ['[Alert]', msg]); };
         window.confirm = (msg) => { sendLog('warn', ['[Confirm]', msg]); return true; };
         window.prompt = (msg) => { sendLog('warn', ['[Prompt]', msg]); return null; };
-
-        window.onerror = (message, source, lineno, colno, error) => {
-           sendLog('error', [\`\${message} (Line \${lineno})\`]);
-           return true; 
-        };
-        
-        window.onunhandledrejection = (event) => {
-           sendLog('error', [\`Unhandled Rejection: \${event.reason}\`]);
-        };
+        window.onerror = (message, source, lineno, colno, error) => { sendLog('error', [\`\${message} (Line \${lineno})\`]); return true; };
+        window.onunhandledrejection = (event) => { sendLog('error', [\`Unhandled Rejection: \${event.reason}\`]); };
       })();
     </script>
     <style>
@@ -212,7 +235,6 @@ export const executeUserCode = (
     </style>
   `;
 
-  // Extremely permissive CSP for playground usage
   const cspMeta = `
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -220,32 +242,26 @@ export const executeUserCode = (
   `;
 
   let htmlContent = '';
-
-  // Smart wrapping: Check if user provided a full HTML document
   const trimmedCode = code.trim();
   const lowerCode = trimmedCode.toLowerCase();
   const isFullPage = lowerCode.startsWith('<!doctype html>') || lowerCode.startsWith('<html');
 
   if (isFullPage) {
-    // If full page, inject interceptor into head
     if (code.includes('<head>')) {
-        htmlContent = code.replace('<head>', `<head>${cspMeta}${consoleInterceptor}`);
+        htmlContent = code.replace('<head>', `<head>${cspMeta}${fsShim}${consoleInterceptor}`);
     } else {
-        htmlContent = code.replace('<html>', `<html><head>${cspMeta}${consoleInterceptor}</head>`);
+        htmlContent = code.replace('<html>', `<html><head>${cspMeta}${fsShim}${consoleInterceptor}</head>`);
     }
   } else {
-    // Partial content (e.g. just an SVG, or just JS)
-    
-    // Check if it looks like HTML or plain JS
     const isHtmlLike = languageId === 'html' || lowerCode.startsWith('<svg') || lowerCode.startsWith('<div') || lowerCode.startsWith('<style');
     
     if (isHtmlLike) {
-        // Wrap partial visual content
         htmlContent = `
         <!DOCTYPE html>
         <html>
             <head>
                 ${cspMeta}
+                ${fsShim}
                 ${consoleInterceptor}
                 <style>
                     body { 
@@ -264,8 +280,6 @@ export const executeUserCode = (
             <body>${code}</body>
         </html>`;
     } else {
-        // Pure JavaScript Mode
-        // We create a container structure so the user can easily attach things to document.body
         const isLibraryMode = interpreterId === 'js-libs';
         let importMapScript = '';
         let scriptTagOpen = '<script>';
@@ -279,6 +293,7 @@ export const executeUserCode = (
           <html>
             <head>
                ${cspMeta}
+               ${fsShim}
                ${consoleInterceptor}
                ${importMapScript}
                <style>
@@ -311,6 +326,9 @@ export const executeUserCode = (
     }
   }
 
-  // Inject content via srcdoc
   iframe.srcdoc = htmlContent;
+
+  return () => {
+      window.removeEventListener('message', messageHandler);
+  };
 };

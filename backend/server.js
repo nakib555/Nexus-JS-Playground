@@ -83,7 +83,8 @@ const checkAndEmitOutputs = (socket, dir, cleanupFiles = []) => {
         { file: 'output.jpeg', mime: 'image/jpeg', isBinary: true },
         { file: 'output.svg', mime: 'image/svg+xml', isBinary: false },
         { file: 'output.html', mime: 'text/html', isBinary: false },
-        { file: 'output.json', mime: 'application/json', isBinary: false }
+        { file: 'output.json', mime: 'application/json', isBinary: false },
+        { file: 'output.txt', mime: 'text/plain', isBinary: false }
     ];
 
     outputs.forEach(out => {
@@ -163,38 +164,47 @@ io.on('connection', (socket) => {
   });
 
   // Run Code
-  socket.on('run-code', async ({ code, extension, entryCommand }) => {
+  socket.on('run-code', async ({ code, extension, entryCommand, files }) => {
     const session = activeSessions.get(socket.id);
     if (!session) return socket.emit('error', 'Session expired.');
     const tempDir = os.tmpdir();
     const filePath = path.join(tempDir, `code_${socket.id}_${Date.now()}.${extension}`);
 
+    // If files are provided, we prepare them
+    // files: [{ name, content (base64) }]
+    const userFiles = files || [];
+
     if (session.type === 'docker') {
       const container = docker.getContainer(session.id);
       try {
+        // 1. Write User Files to Container
+        for (const file of userFiles) {
+             const safeName = path.basename(file.name); // Basic sanitization
+             // Write using shell redirect.
+             // Warning: Large files via shell echo is risky, but suitable for playground snippets.
+             const writeCmd = `echo "${file.content}" | base64 -d > /workspace/${safeName}`;
+             const execFile = await container.exec({ Cmd: ['sh', '-c', writeCmd] });
+             await execFile.start({});
+        }
+
+        // 2. Write Code File
         const b64Code = Buffer.from(code).toString('base64');
-        const containerPath = `/workspace/code.${extension}`; // Fixed path in workspace
-        const writeCmd = `echo "${b64Code}" | base64 -d > ${containerPath}`;
-        
-        // Write file
-        const execWrite = await container.exec({ Cmd: ['sh','-c', writeCmd] });
+        const containerPath = `/workspace/code.${extension}`; 
+        const writeCodeCmd = `echo "${b64Code}" | base64 -d > ${containerPath}`;
+        const execWrite = await container.exec({ Cmd: ['sh','-c', writeCodeCmd] });
         await execWrite.start({});
 
-        // Adjust entry command if it has the placeholder logic from before, OR just run straightforward
-        // We expect entryCommand like "pip install X && python3" or just "python3"
-        // If the command doesn't mention the file, we append it
+        // 3. Construct Run Command
         let finalCmd = entryCommand;
         
-        // Heuristic: if command mentions the file path placeholder or not
+        // Handle file path injection
         if (finalCmd.includes('/tmp/code')) {
             finalCmd = finalCmd.replace(/\/tmp\/code\.\w+/, containerPath);
         } else {
-             // If it ends with && (chained), append filename to last part? 
-             // Safer: user frontend sends "cmd" which might be "python3". We append filename.
-             // If it's "pip install X && python3", we become "pip install X && python3 /workspace/code.py"
              finalCmd = `${finalCmd} ${containerPath}`;
         }
 
+        // 4. Execute
         const execRun = await container.exec({ 
             Cmd: ['sh','-c', finalCmd], 
             AttachStdout:true, 
@@ -204,15 +214,16 @@ io.on('connection', (socket) => {
         const stream = await execRun.start({});
         container.modem.demuxStream(stream, { write: c=>socket.emit('output',{stream:'stdout',data:c.toString()}) }, { write: c=>socket.emit('output',{stream:'stderr',data:c.toString()}) });
 
+        // 5. Monitor & Extract Outputs
         const checkExit = setInterval(async () => {
           try {
             const inspect = await execRun.inspect();
             if (!inspect.Running) {
               clearInterval(checkExit);
               
-              // Extract Outputs
+              // Extract Outputs using cat + base64 inside container
               const outputScript = `
-                for f in /workspace/output.png /workspace/output.jpg /workspace/output.svg /workspace/output.html /workspace/output.json; do
+                for f in /workspace/output.png /workspace/output.jpg /workspace/output.svg /workspace/output.html /workspace/output.json /workspace/output.txt; do
                   if [ -f "$f" ]; then
                     echo "---START-$f---"
                     cat "$f" | base64
@@ -220,6 +231,9 @@ io.on('connection', (socket) => {
                     rm "$f"
                   fi
                 done
+                # Cleanup user files to keep workspace clean for next run? 
+                # Ideally we persist, but for this simple version we might leave them.
+                # Actually, persistent workspace is better for "Run" "Run again".
               `;
               
               const outExec = await container.exec({ Cmd: ['sh', '-c', outputScript], AttachStdout: true });
@@ -261,6 +275,13 @@ io.on('connection', (socket) => {
       // Local Execution Fallback
       try {
         fs.writeFileSync(filePath, code);
+        
+        // Write user files to temp dir
+        for (const file of userFiles) {
+            const fileBuf = Buffer.from(file.content, 'base64');
+            fs.writeFileSync(path.join(tempDir, path.basename(file.name)), fileBuf);
+        }
+
         let cmd = session.cmd || 'node';
         let args = [filePath];
         
@@ -269,8 +290,6 @@ io.on('connection', (socket) => {
             cmd = 'sh';
             args = ['-c', entryCommand.replace(/\/tmp\/code\.\w+/, filePath)];
           } else {
-            // Very basic local fallback for chained commands
-            // "pip install X && python" -> might fail locally if not in shell
             cmd = 'sh';
             args = ['-c', `${entryCommand} ${filePath}`];
           }
@@ -281,7 +300,7 @@ io.on('connection', (socket) => {
         child.stdout.on('data', d=>socket.emit('output',{stream:'stdout',data:d.toString()}));
         child.stderr.on('data', d=>socket.emit('output',{stream:'stderr',data:d.toString()}));
         child.on('close', code=>{
-          checkAndEmitOutputs(socket, tempDir, [filePath]);
+          checkAndEmitOutputs(socket, tempDir, [filePath]); // This will clean up the code file
           socket.emit('exit', code);
         });
         child.on('error', err=>socket.emit('error','Spawn Error: '+err.message));

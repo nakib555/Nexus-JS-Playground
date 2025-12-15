@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import { LogType } from "../types";
+import { LogType, VirtualFile } from "../types";
 
 // Default to env var or localhost
 const DEFAULT_URL = (import.meta as any).env?.VITE_BACKEND_URL || "http://localhost:3001";
@@ -141,10 +141,12 @@ class DockerClient {
     });
   }
 
-  public runCode(code: string, extension: string, entryCommand: string) {
+  public runCode(code: string, extension: string, entryCommand: string, files: VirtualFile[] = []) {
     if (this.socket && this.socket.connected) {
       this.onStatusChange?.('Running...');
-      this.socket.emit("run-code", { code, extension, entryCommand });
+      // Extract only necessary data to send to backend (name and content)
+      const transferableFiles = files.map(f => ({ name: f.name, content: f.content }));
+      this.socket.emit("run-code", { code, extension, entryCommand, files: transferableFiles });
     } else {
       this.onLog?.(LogType.ERROR, ["Not connected to execution environment."]);
     }

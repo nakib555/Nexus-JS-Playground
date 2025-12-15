@@ -16,6 +16,15 @@ export interface LogEntry {
   messages: any[];
 }
 
+export interface VirtualFile {
+  id: string;
+  name: string;
+  content: string; // Base64 encoded content
+  size: number;
+  type: string; // MIME type
+  lastModified: number;
+}
+
 export type TabOption = 'editor' | 'console' | 'visual';
 
 export interface ExecutionContext {
