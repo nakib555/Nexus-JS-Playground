@@ -46,8 +46,8 @@ export const LANGUAGES: Language[] = [
         description: 'Full Python runtime with pip and system libraries.',
         dockerImage: 'python:3.11', // FULL IMAGE
         extension: 'py',
-        entryCommand: 'python3',
-        installCommand: 'python3 -m pip install',
+        entryCommand: 'python',
+        installCommand: 'python -m pip install',
         setupCode: `
 import matplotlib
 matplotlib.use('Agg')

@@ -78,7 +78,8 @@ const App: React.FC = () => {
             lang.id,
             interpreter.dockerImage,
             addLog,
-            (status) => setConnectionStatus(status)
+            (status) => setConnectionStatus(status),
+            () => setIsRunning(false) // Handle run finished
         );
     }
   };
@@ -204,7 +205,6 @@ const App: React.FC = () => {
 
             // Pass files to docker client
             dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command, files);
-            setTimeout(() => setIsRunning(false), 1000);
         } else {
             // Error State - No AI Fallback
             addLog(LogType.ERROR, [`Execution Failed: Backend not connected.`]);

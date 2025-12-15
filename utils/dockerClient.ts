@@ -8,6 +8,7 @@ class DockerClient {
   private socket: Socket | null = null;
   private onLog: ((type: LogType, messages: any[]) => void) | null = null;
   private onStatusChange: ((status: string) => void) | null = null;
+  private onRunFinished: (() => void) | null = null;
   private backendUrl: string = DEFAULT_URL;
 
   constructor() {
@@ -82,12 +83,14 @@ class DockerClient {
     language: string, 
     image: string, 
     onLog: (type: LogType, messages: any[]) => void,
-    onStatusChange: (status: string) => void
+    onStatusChange: (status: string) => void,
+    onRunFinished: () => void
   ) {
     this.disconnect(); 
     
     this.onLog = onLog;
     this.onStatusChange = onStatusChange;
+    this.onRunFinished = onRunFinished;
 
     this.onStatusChange('Connecting...');
 
@@ -120,11 +123,12 @@ class DockerClient {
 
     this.socket.on("exit", (code) => {
       let msg = `Process exited with code ${code}`;
-      if (code === 127) msg += " (Command not found - check interpreter settings)";
+      if (code === 127) msg += " (Command not found. Ensure the language runtime (e.g. 'python', 'node', 'go') is installed and available in your system PATH)";
       if (code === 137) msg += " (Process killed - Memory Limit Exceeded)";
       
       this.onLog?.(LogType.SYSTEM, [msg]);
       this.onStatusChange?.('Ready');
+      this.onRunFinished?.();
     });
 
     this.socket.on("error", (err) => {
@@ -132,12 +136,23 @@ class DockerClient {
       const msg = typeof err === 'string' ? err : err.message || 'Unknown Error';
       this.onLog?.(LogType.ERROR, [`System Error: ${msg}`]);
       this.onStatusChange?.('Error');
+      this.onRunFinished?.();
     });
 
     this.socket.on("connect_error", (err) => {
       console.error("Socket Connection Error:", err);
       this.onStatusChange?.('Connection Failed');
       this.onLog?.(LogType.ERROR, [`Failed to connect to backend at ${this.backendUrl}. Check Settings.`]);
+      this.onRunFinished?.();
+    });
+
+    this.socket.on("disconnect", (reason) => {
+       console.warn("Socket Disconnected:", reason);
+       this.onStatusChange?.('Disconnected');
+       if (reason === 'io server disconnect' || reason === 'transport close') {
+           this.onLog?.(LogType.ERROR, [`Connection lost: ${reason}`]);
+       }
+       this.onRunFinished?.();
     });
   }
 
@@ -149,6 +164,7 @@ class DockerClient {
       this.socket.emit("run-code", { code, extension, entryCommand, files: transferableFiles });
     } else {
       this.onLog?.(LogType.ERROR, ["Not connected to execution environment."]);
+      this.onRunFinished?.();
     }
   }
 

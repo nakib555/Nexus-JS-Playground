@@ -67,7 +67,7 @@ const activeSessions = new Map();
 
 const getLocalCommand = (image) => {
   if (image.includes('node')) return 'node';
-  if (image.includes('python')) return 'python3';
+  if (image.includes('python')) return 'python';
   if (image.includes('golang')) return 'go run';
   if (image.includes('ruby')) return 'ruby';
   if (image.includes('php')) return 'php';
@@ -231,9 +231,6 @@ io.on('connection', (socket) => {
                     rm "$f"
                   fi
                 done
-                # Cleanup user files to keep workspace clean for next run? 
-                # Ideally we persist, but for this simple version we might leave them.
-                # Actually, persistent workspace is better for "Run" "Run again".
               `;
               
               const outExec = await container.exec({ Cmd: ['sh', '-c', outputScript], AttachStdout: true });
