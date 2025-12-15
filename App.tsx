@@ -9,7 +9,6 @@ import { SettingsModal } from './components/SettingsModal';
 import { LANGUAGE_TEMPLATES } from './constants';
 import { LogEntry, LogType, Language, Interpreter, Command as CommandType } from './types';
 import { executeUserCode } from './utils/executor';
-import { dockerClient } from './utils/dockerClient';
 import { executeWithAI } from './utils/aiRunner';
 
 type MobileTab = 'editor' | 'preview' | 'console';
@@ -21,7 +20,6 @@ const App: React.FC = () => {
   
   const [code, setCode] = useState<string>('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [backendStatus, setBackendStatus] = useState<string>('');
   
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
@@ -56,27 +54,6 @@ const App: React.FC = () => {
     localStorage.setItem('nexus-theme', theme);
   }, [theme]);
 
-  // Docker Session Management
-  useEffect(() => {
-    if (selectedInterpreter?.type === 'docker' && selectedInterpreter.dockerImage) {
-        // Initialize Docker Session
-        dockerClient.connect(
-            selectedLanguage?.id || 'unknown',
-            selectedInterpreter.dockerImage,
-            addLog,
-            (status) => setBackendStatus(status)
-        );
-    }
-
-    return () => {
-        // Cleanup Docker Session on unmount or change
-        if (selectedInterpreter?.type === 'docker') {
-            dockerClient.disconnect();
-            setBackendStatus('');
-        }
-    };
-  }, [selectedInterpreter, selectedLanguage]);
-
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   const handleLanguageSelect = (lang: Language, interpreter: Interpreter) => {
@@ -89,10 +66,6 @@ const App: React.FC = () => {
   };
 
   const handleBackToSelection = () => {
-    if (selectedInterpreter?.type === 'docker') {
-      dockerClient.disconnect();
-    }
-    
     setSelectedLanguage(null);
     setSelectedInterpreter(null);
     setLogs([]);
@@ -146,62 +119,25 @@ const App: React.FC = () => {
 
     setIsRunning(true);
     handleClearLogs();
-    setHasVisualContent(false); // Reset visual state on run
+    setHasVisualContent(false); 
 
-    // AI SIMULATION
-    if (selectedInterpreter.type === 'ai') {
-        await executeWithAI(
-          code,
-          selectedLanguage.name,
-          selectedInterpreter,
-          addLog,
-          (htmlContent) => {
-             const rootEl = getVisualRoot();
-             if (rootEl) {
-                // For AI mode, we trust that if onVisual is called, there is content.
-                setHasVisualContent(true);
-                executeUserCode(htmlContent, rootEl, addLog, 'html', undefined, (hasContent) => setHasVisualContent(hasContent));
-             }
-          },
-          signal
-        );
-        setIsRunning(false);
-        return;
-    }
+    // Execute using the Smart AI Runtime (Universal)
+    await executeWithAI(
+      code,
+      selectedLanguage.name,
+      selectedInterpreter,
+      addLog,
+      (htmlContent) => {
+          const rootEl = getVisualRoot();
+          if (rootEl) {
+            setHasVisualContent(true);
+            executeUserCode(htmlContent, rootEl, addLog, 'html', undefined, (hasContent) => setHasVisualContent(hasContent));
+          }
+      },
+      signal
+    );
+    setIsRunning(false);
 
-    // DOCKER/LOCAL BACKEND EXECUTION
-    if (selectedInterpreter.type === 'docker') {
-        await new Promise(r => setTimeout(r, 100));
-        dockerClient.runCode(
-            code, 
-            selectedInterpreter.extension || 'txt', 
-            selectedInterpreter.entryCommand || 'cat'
-        );
-        setIsRunning(false);
-        return;
-    }
-
-    // BROWSER EXECUTION
-    if (selectedInterpreter.type === 'browser') {
-      setTimeout(() => {
-        if (signal.aborted) return setIsRunning(false);
-        const rootEl = getVisualRoot();
-        if (!rootEl) {
-          addLog(LogType.ERROR, ["Visual Root not found."]);
-          return setIsRunning(false);
-        }
-        executeUserCode(
-          code, 
-          rootEl, 
-          addLog, 
-          selectedLanguage.id, 
-          selectedInterpreter.id,
-          (hasContent) => setHasVisualContent(hasContent)
-        );
-        setIsRunning(false);
-      }, 50);
-      return;
-    } 
   }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot]);
 
   const toggleRun = useCallback(() => {
@@ -224,9 +160,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isLiveMode || !selectedInterpreter) return;
-    if (selectedInterpreter.type === 'docker' || selectedInterpreter.type === 'ai') return;
-
-    const delay = 800;
+    
+    // Debounce live run for smoother typing
+    const delay = 1200;
     const timer = setTimeout(() => { if (!isRunningRef.current) handleRun() }, delay);
     return () => clearTimeout(timer);
   }, [code, isLiveMode, selectedInterpreter, handleRun]);
@@ -245,7 +181,7 @@ const App: React.FC = () => {
   const handleCodeGenerated = (newCode: string) => {
     setCode(newCode);
     setTimeout(() => {
-       if (window.innerWidth < 768) setMobileActiveTab(selectedInterpreter?.type === 'browser' || selectedInterpreter?.type === 'ai' ? 'preview' : 'console');
+       if (window.innerWidth < 768) setMobileActiveTab('preview');
        if (!isLiveMode) {
            setIsLiveMode(true);
            handleRun();
@@ -269,7 +205,6 @@ const App: React.FC = () => {
     { id: 'ai', name: 'AI Assistant', onSelect: () => setIsAIModalOpen(true), icon: <Sparkles size={16}/>, section: 'Actions' },
     { id: 'reset', name: 'Reset Code', onSelect: handleReset, icon: <RotateCcw size={16}/>, section: 'Actions' },
     { id: 'clear', name: 'Clear Console', onSelect: handleClearLogs, icon: <Terminal size={16}/>, section: 'Actions' },
-    { id: 'settings', name: 'Connection Settings', onSelect: () => setIsSettingsOpen(true), icon: <Server size={16}/>, section: 'General' },
     { id: 'lang', name: 'Change Language', onSelect: handleBackToSelection, icon: <Settings2 size={16}/>, section: 'Navigation' },
     { id: 'theme', name: 'Toggle Theme', onSelect: toggleTheme, icon: theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>, section: 'General' },
   ];
@@ -278,28 +213,12 @@ const App: React.FC = () => {
     return (
       <>
         <div className="fixed top-4 right-4 z-[110] flex gap-2">
-            <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors"><Server size={20} /></button>
             <button onClick={toggleTheme} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors">{theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button>
         </div>
         <LanguageSelector onSelect={handleLanguageSelect} />
-        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       </>
     );
   }
-
-  // Determine indicator color and icon
-  const getStatusColor = () => {
-      if (backendStatus.includes('Error') || backendStatus.includes('Failed')) return 'text-red-500';
-      if (backendStatus.includes('Connecting') || backendStatus.includes('Booting')) return 'text-amber-500 animate-pulse';
-      if (backendStatus.includes('Container') || backendStatus.includes('Docker')) return 'text-emerald-500'; // Docker
-      if (backendStatus.includes('Local')) return 'text-blue-500'; // Local
-      return 'text-gray-500';
-  };
-  
-  const getStatusIcon = () => {
-      if (backendStatus.includes('Local')) return <Cpu size={12} className={getStatusColor()} />;
-      return <Container size={12} className={getStatusColor()} />;
-  };
 
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col text-gray-900 dark:text-white font-sans overflow-hidden bg-white dark:bg-[#0A0A0A] selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white">
@@ -317,19 +236,11 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Backend Status Indicator - Explicit Check */}
-        {selectedInterpreter.type === 'docker' && (
-             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 cursor-pointer hover:bg-gray-200 dark:hover:bg-white/10 transition-colors group" onClick={() => setIsSettingsOpen(true)}>
-                {getStatusIcon()}
-                <span className={`text-[10px] font-mono ${getStatusColor().split(' ')[0]}`}>{backendStatus || 'Disconnected'}</span>
-             </div>
-        )}
-        {selectedInterpreter.type === 'ai' && (
-             <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20">
-                <Sparkles size={12} className="text-indigo-500" />
-                <span className="text-[10px] font-mono text-indigo-700 dark:text-indigo-300">AI Simulation Mode</span>
-             </div>
-        )}
+        {/* Runtime Status Indicator */}
+         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20">
+            <Sparkles size={12} className="text-indigo-500" />
+            <span className="text-[10px] font-mono text-indigo-700 dark:text-indigo-300">Smart Runtime Active</span>
+         </div>
 
         <div className="flex items-center gap-2">
           <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
@@ -372,7 +283,7 @@ const App: React.FC = () => {
 
       <footer className="shrink-0 hidden md:flex h-7 bg-white dark:bg-[#050505] border-t border-gray-200 dark:border-white/10 px-3 items-center justify-between text-[10px] text-gray-500 select-none z-40 transition-colors">
         <div className="flex items-center gap-3">
-           <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500' : (isLiveMode ? 'bg-red-500' : 'bg-emerald-500')} ${isRunning || isLiveMode ? 'animate-pulse' : ''}`}></div><span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Running...' : (isLiveMode ? 'Live Mode' : 'Ready')}</span></div>
+           <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500' : (isLiveMode ? 'bg-red-500' : 'bg-emerald-500')} ${isRunning || isLiveMode ? 'animate-pulse' : ''}`}></div><span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Installing & Running...' : (isLiveMode ? 'Live Mode Active' : 'Runtime Ready')}</span></div>
         </div>
         <div className="flex items-center gap-2">
             <button onClick={() => setIsCommandPaletteOpen(true)} className="text-gray-400 dark:text-gray-600 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">Press <kbd className="inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-gray-200 dark:bg-black/50 border border-gray-300 dark:border-white/20 mx-0.5">⌘P</kbd> for commands</button>
