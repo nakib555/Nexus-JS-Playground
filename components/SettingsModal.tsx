@@ -43,7 +43,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             setTimeout(() => {
                 setIsSaved(false);
                 onClose();
-            }, 800);
+            }, 1000);
         } else {
             setError("Connection failed. Is the backend running?");
         }
@@ -137,7 +137,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02] flex justify-between items-center">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02] flex justify-between items-center relative">
           <button 
              onClick={handleReset}
              disabled={isVerifying}
@@ -148,7 +148,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
              Reset
           </button>
           
-          <div className="flex gap-3">
+          <div className="flex gap-3 relative">
+            {isSaved && (
+                <div className="absolute bottom-full mb-3 right-0 whitespace-nowrap text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-500/20 animate-in fade-in slide-in-from-bottom-2">
+                    ✓ Connection Verified!
+                </div>
+            )}
             <button 
                 onClick={onClose}
                 disabled={isVerifying}

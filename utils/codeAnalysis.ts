@@ -31,7 +31,7 @@ export const detectLibraries = (code: string, languageId: string): string[] => {
         // Regex for JS/TS:
         // import ... from 'lib'
         // require('lib')
-        const importRegex = /(?:import\s+(?:[\w*\s{},]*)\s+from\s+['"]([^'"]+)['"])|(?:require\(['"]([^'"]+)['"]))/g;
+        const importRegex = /(?:import\s+(?:[\w*\s{},]*)\s+from\s+['"]([^'"]+)['"])|(?:require\(['"]([^'"]+)['"]\))/g;
         
         let match;
         while ((match = importRegex.exec(code)) !== null) {

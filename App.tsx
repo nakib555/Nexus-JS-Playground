@@ -11,6 +11,7 @@ import { LogEntry, LogType, Language, Interpreter, Command as CommandType } from
 import { executeUserCode } from './utils/executor';
 import { dockerClient } from './utils/dockerClient';
 import { detectLibraries } from './utils/codeAnalysis';
+import { executeWithAI } from './utils/aiRunner';
 
 type MobileTab = 'editor' | 'preview' | 'console';
 type Theme = 'dark' | 'light';
@@ -44,6 +45,7 @@ const App: React.FC = () => {
   const [hasVisualContent, setHasVisualContent] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -85,6 +87,10 @@ const App: React.FC = () => {
     setMobileActiveTab('editor');
     setIsRunning(false);
     setHasVisualContent(false);
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+    }
   };
 
   const startResize = useCallback(() => setIsDragging(true), []);
@@ -117,6 +123,12 @@ const App: React.FC = () => {
   const handleRun = useCallback(async () => {
     if (!selectedLanguage || !selectedInterpreter) return;
 
+    // Reset abort controller for new run
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setIsRunning(true);
     handleClearLogs();
     setHasVisualContent(false);
@@ -132,49 +144,68 @@ const App: React.FC = () => {
         return;
     }
 
-    // Docker Execution
+    // Docker Execution (with AI Fallback)
     if (selectedInterpreter.type === 'docker') {
-        const libs = detectLibraries(code, selectedLanguage.id);
-        let finalCode = code;
-        let command = selectedInterpreter.entryCommand || '';
+        const isBackendConnected = connectionStatus.includes('Ready');
 
-        // Prepend setup code if exists (e.g. Matplotlib patch)
-        if (selectedInterpreter.setupCode) {
-            finalCode = selectedInterpreter.setupCode + '\n' + code;
-        }
+        if (isBackendConnected) {
+            const libs = detectLibraries(code, selectedLanguage.id);
+            let finalCode = code;
+            let command = selectedInterpreter.entryCommand || '';
 
-        // Handle Library Installation
-        if (libs.length > 0 && selectedInterpreter.installCommand) {
-            addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
-            addLog(LogType.SYSTEM, [`[System] Installing dependencies...`]);
+            // Prepend setup code if exists (e.g. Matplotlib patch)
+            if (selectedInterpreter.setupCode) {
+                finalCode = selectedInterpreter.setupCode + '\n' + code;
+            }
+
+            // Handle Library Installation
+            if (libs.length > 0 && selectedInterpreter.installCommand) {
+                addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
+                addLog(LogType.SYSTEM, [`[System] Installing dependencies...`]);
+                
+                const installCmd = selectedInterpreter.installCommand.replace('{libs}', libs.join(' '));
+                
+                if (selectedLanguage.id === 'python') {
+                     command = `pip install ${libs.join(' ')} && ${command}`;
+                } else if (selectedLanguage.id === 'javascript') {
+                     command = `npm install ${libs.join(' ')} && ${command}`;
+                } else if (selectedLanguage.id === 'go') {
+                     command = `go get ${libs.join(' ')} && ${command}`;
+                }
+            }
+
+            dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command);
+            setTimeout(() => setIsRunning(false), 1000);
+        } else {
+            // AI Runtime Fallback
+            addLog(LogType.SYSTEM, [`[Nexus] Backend unavailable. Switching to AI Runtime (Simulation)...`]);
             
-            const installCmd = selectedInterpreter.installCommand.replace('{libs}', libs.join(' '));
-            
-            // Note: We are chaining the install and run command in one go for the backend
-            // Ideally backend supports persistent sessions better, but for now we chain in shell
-            if (selectedLanguage.id === 'python') {
-                 // Python: pip install X && python code.py
-                 command = `pip install ${libs.join(' ')} && ${command}`;
-            } else if (selectedLanguage.id === 'javascript') {
-                 // Node: npm install X && node code.js
-                 command = `npm install ${libs.join(' ')} && ${command}`;
-            } else if (selectedLanguage.id === 'go') {
-                 // Go: go get X && go run code.go
-                 // Go requires module init usually, simplifying for playground
-                 command = `go get ${libs.join(' ')} && ${command}`;
+            try {
+                await executeWithAI(
+                    code,
+                    selectedLanguage.name,
+                    selectedInterpreter,
+                    addLog,
+                    (htmlContent) => {
+                        setHasVisualContent(true);
+                        const rootEl = getVisualRoot();
+                        if (rootEl) {
+                             executeUserCode(htmlContent, rootEl, addLog, 'html');
+                        }
+                    },
+                    abortControllerRef.current?.signal
+                );
+            } catch (error: any) {
+                if (error.name !== 'AbortError') {
+                    addLog(LogType.ERROR, [`Execution Error: ${error.message}`]);
+                }
+            } finally {
+                setIsRunning(false);
             }
         }
-
-        dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command);
-        
-        // Timeout to reset running state is handled by socket events usually, 
-        // but we'll set a fallback or listen to dockerClient events in future.
-        // For now, simple timeout or waiting for "exit" log would be better.
-        // Since dockerClient is event based, we just toggle button state briefly or let the status bar show it.
-        setTimeout(() => setIsRunning(false), 1000); 
     }
 
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot]);
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus]);
 
   const handleReset = () => {
     if (selectedLanguage && window.confirm("Reset code to default example?")) {
@@ -249,10 +280,25 @@ const App: React.FC = () => {
         </div>
 
         {/* Runtime Status Indicator */}
-         <div className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full border transition-colors ${selectedInterpreter.type === 'docker' ? (connectionStatus.includes('Ready') ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20' : 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-100 dark:border-yellow-500/20') : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'}`}>
-            {selectedInterpreter.type === 'docker' ? <Container size={12} className={connectionStatus.includes('Ready') ? "text-emerald-500" : "text-yellow-500"} /> : <Monitor size={12} className="text-indigo-500" />}
-            <span className={`text-[10px] font-mono ${selectedInterpreter.type === 'docker' ? (connectionStatus.includes('Ready') ? "text-emerald-700 dark:text-emerald-300" : "text-yellow-700 dark:text-yellow-300") : "text-indigo-700 dark:text-indigo-300"}`}>
-               {selectedInterpreter.type === 'docker' ? connectionStatus : 'Browser Runtime'}
+         <div className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full border transition-colors ${
+             selectedInterpreter.type === 'docker' 
+                ? (connectionStatus.includes('Ready') 
+                    ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20' 
+                    : 'bg-purple-50 dark:bg-purple-500/10 border-purple-100 dark:border-purple-500/20') 
+                : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
+         }`}>
+            {selectedInterpreter.type === 'docker' 
+                ? (connectionStatus.includes('Ready') ? <Container size={12} className="text-emerald-500" /> : <Sparkles size={12} className="text-purple-500" />) 
+                : <Monitor size={12} className="text-indigo-500" />
+            }
+            <span className={`text-[10px] font-mono ${
+                selectedInterpreter.type === 'docker' 
+                    ? (connectionStatus.includes('Ready') ? "text-emerald-700 dark:text-emerald-300" : "text-purple-700 dark:text-purple-300") 
+                    : "text-indigo-700 dark:text-indigo-300"
+            }`}>
+               {selectedInterpreter.type === 'docker' 
+                   ? (connectionStatus.includes('Ready') ? connectionStatus : 'AI Runtime') 
+                   : 'Browser Runtime'}
             </span>
          </div>
 

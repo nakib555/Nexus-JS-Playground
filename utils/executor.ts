@@ -51,6 +51,10 @@ export const executeUserCode = (
             if (obj instanceof RegExp) return obj.toString();
             if (obj instanceof Date) return obj.toISOString();
             
+            // Support for Set and Map in output
+            if (obj instanceof Set) return Array.from(obj).map(v => serialize(v, seen));
+            if (obj instanceof Map) return Array.from(obj.entries()).map(([k, v]) => [serialize(k, seen), serialize(v, seen)]);
+
             if (obj instanceof Element) {
                 // For elements, give a nice representation or just outerHTML if small
                 if (obj.outerHTML.length < 200) return obj.outerHTML;
@@ -146,6 +150,10 @@ export const executeUserCode = (
         // --- Overrides ---
 
         const originalConsole = console;
+        
+        // Timer storage for console.time/timeEnd polyfill
+        const timers = new Map();
+
         window.console = {
           ...originalConsole,
           log: (...args) => { originalConsole.log(...args); sendLog('info', args); },
@@ -154,7 +162,34 @@ export const executeUserCode = (
           info: (...args) => { originalConsole.info(...args); sendLog('info', args); },
           debug: (...args) => { originalConsole.debug(...args); sendLog('info', args); },
           table: (...args) => { originalConsole.table(...args); sendLog('table', args); },
-          clear: () => { }
+          dir: (...args) => { originalConsole.dir(...args); sendLog('info', args); },
+          clear: () => { },
+          
+          assert: (condition, ...args) => { 
+              originalConsole.assert(condition, ...args); 
+              if (!condition) sendLog('error', ['Assertion failed:', ...args]); 
+          },
+          
+          count: (label = 'default') => { 
+             originalConsole.count(label); 
+             sendLog('info', [\`Count: \${label}\`]); 
+          },
+
+          time: (label = 'default') => {
+            originalConsole.time(label);
+            timers.set(label, performance.now());
+          },
+
+          timeEnd: (label = 'default') => {
+            originalConsole.timeEnd(label);
+            if (timers.has(label)) {
+                const duration = performance.now() - timers.get(label);
+                sendLog('info', [\`\${label}: \${duration.toFixed(3)}ms\`]);
+                timers.delete(label);
+            } else {
+                sendLog('warn', [\`Timer '\${label}' does not exist\`]);
+            }
+          }
         };
 
         window.alert = (msg) => { sendLog('warn', ['[Alert]', msg]); };
