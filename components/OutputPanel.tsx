@@ -183,13 +183,14 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   visualRootId = 'visual-root',
   hasVisualContentOverride
 }) => {
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [layoutMode, setLayoutMode] = useState<'auto' | 'split' | 'visual' | 'console'>('auto');
   const [effectiveLayout, setEffectiveLayout] = useState<'split' | 'visual' | 'console'>('visual');
   const [visualHeight, setVisualHeight] = useState(60); 
   const [isDraggingVertical, setIsDraggingVertical] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   useEffect(() => {
     if (mobileView) {
@@ -207,11 +208,26 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
     }
   }, [layoutMode, hasVisualContentOverride, logs.length, mobileView]);
 
-  useEffect(() => {
-    if (['console', 'split'].includes(effectiveLayout)) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleScroll = useCallback(() => {
+    if (scrollViewportRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollViewportRef.current;
+        const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+        setIsAtBottom(atBottom);
     }
-  }, [logs, effectiveLayout]);
+  }, []);
+
+  useEffect(() => {
+    if (isAtBottom && ['console', 'split'].includes(effectiveLayout) && scrollViewportRef.current) {
+        requestAnimationFrame(() => {
+            if (scrollViewportRef.current) {
+                scrollViewportRef.current.scrollTo({
+                    top: scrollViewportRef.current.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        });
+    }
+  }, [logs, effectiveLayout, isAtBottom]);
 
   const startResizeVertical = useCallback(() => setIsDraggingVertical(true), []);
   const stopResizeVertical = useCallback(() => setIsDraggingVertical(false), []);
@@ -297,7 +313,11 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
 
         <div style={{ flexBasis: effectiveLayout === 'split' ? `${100 - visualHeight}%` : 'auto' }} className={`relative bg-gray-50 dark:bg-gray-950 flex flex-col transition-all duration-300 ease-in-out origin-bottom ${effectiveLayout === 'visual' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''} ${effectiveLayout === 'console' ? 'flex-1' : ''}`}>
            <div className="absolute top-2 right-2 pointer-events-none opacity-50 z-10"><span className="text-[9px] font-mono text-gray-400 bg-white/50 dark:bg-black/50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 backdrop-blur">Console</span></div>
-           <div className="flex-1 overflow-y-auto overflow-x-auto font-mono text-xs custom-scrollbar">
+           <div 
+             ref={scrollViewportRef}
+             onScroll={handleScroll}
+             className="flex-1 overflow-y-auto overflow-x-auto font-mono text-xs custom-scrollbar scroll-smooth"
+           >
             {logs.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-800 space-y-3 opacity-60"><Terminal className="w-6 h-6" /><p className="text-[10px] font-medium uppercase tracking-widest">No Logs</p></div>
             ) : (
@@ -322,7 +342,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
                     <span className="text-[9px] text-gray-400 dark:text-gray-700 shrink-0 font-sans select-none opacity-0 group-hover:opacity-100 transition-opacity pt-1">{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}</span>
                   </div>
                 ))}
-                <div ref={endRef} className="h-4" />
+                <div className="h-4" />
               </div>
             )}
           </div>

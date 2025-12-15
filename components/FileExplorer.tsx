@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { File as FileIcon, Upload, Download, Trash2, FolderOpen, Image as ImageIcon, FileCode, FileText, Plus } from 'lucide-react';
+import { File as FileIcon, Upload, Download, Trash2, FolderOpen, Image as ImageIcon, FileCode, FileText, Plus, X } from 'lucide-react';
 import { VirtualFile } from '../types';
 
 interface FileExplorerProps {
@@ -67,6 +67,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           >
             <Plus size={16} />
           </button>
+          
+          {isMobile && (
+             <button 
+                onClick={onToggle}
+                className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-md transition-colors text-gray-500 dark:text-gray-400 hover:text-red-500 ml-1"
+                title="Close"
+             >
+                <X size={16} />
+             </button>
+          )}
         </div>
         <input 
           type="file" 

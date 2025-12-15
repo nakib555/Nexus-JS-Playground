@@ -475,9 +475,6 @@ const App: React.FC = () => {
           {/* Mobile File Explorer Overlay */}
           <div className={`absolute inset-0 z-30 flex transition-transform duration-300 ${isFileExplorerOpen ? 'translate-x-0' : '-translate-x-full'}`}>
               <div className="w-64 h-full bg-white dark:bg-[#0A0A0A] shadow-2xl relative z-40 border-r border-gray-200 dark:border-white/10">
-                 <div className="absolute top-2 right-2 md:hidden">
-                    <button onClick={() => setIsFileExplorerOpen(false)} className="p-1 text-gray-400 hover:text-gray-900 dark:hover:text-white"><X size={16} /></button>
-                 </div>
                  <FileExplorer 
                     files={files} 
                     onUpload={handleFileUpload} 
