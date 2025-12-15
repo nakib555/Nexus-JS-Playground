@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LogEntry, LogType } from '../types';
-import { Terminal, Box, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Minimize2, Split, GripVertical, FunctionSquare, Table, GripHorizontal } from 'lucide-react';
+import { Terminal, Box, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Minimize2, Split, GripVertical, FunctionSquare, Table, GripHorizontal, Cpu } from 'lucide-react';
 
 interface OutputPanelProps {
   logs: LogEntry[];
@@ -333,13 +333,14 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
             ) : (
               <div className="flex flex-col min-h-full py-2">
                 {logs.map((log) => (
-                  <div key={log.id} className={`flex gap-3 px-4 py-1.5 border-l-2 border-transparent hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group items-start ${log.type === LogType.ERROR ? 'border-l-red-500 bg-red-50 dark:bg-red-500/5' : ''} ${log.type === LogType.WARN ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-500/5' : ''} ${log.type === LogType.SUCCESS ? 'border-l-green-500 bg-green-50 dark:bg-green-500/5' : ''} ${log.type === LogType.INFO ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-500/5' : ''} ${log.type === LogType.TABLE ? 'border-l-indigo-500 bg-indigo-50 dark:bg-indigo-500/5' : ''}`}>
+                  <div key={log.id} className={`flex gap-3 px-4 py-1.5 border-l-2 border-transparent hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group items-start ${log.type === LogType.ERROR ? 'border-l-red-500 bg-red-50 dark:bg-red-500/5' : ''} ${log.type === LogType.WARN ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-500/5' : ''} ${log.type === LogType.SUCCESS ? 'border-l-green-500 bg-green-50 dark:bg-green-500/5' : ''} ${log.type === LogType.INFO ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-500/5' : ''} ${log.type === LogType.TABLE ? 'border-l-indigo-500 bg-indigo-50 dark:bg-indigo-500/5' : ''} ${log.type === LogType.SYSTEM ? 'border-l-fuchsia-500 bg-fuchsia-50 dark:bg-fuchsia-500/5' : ''}`}>
                     <span className="shrink-0 mt-0.5 opacity-60">
                       {log.type === LogType.ERROR && <AlertCircle className="w-3 h-3 text-red-500 dark:text-red-400" />}
                       {log.type === LogType.WARN && <AlertTriangle className="w-3 h-3 text-yellow-500 dark:text-yellow-400" />}
                       {log.type === LogType.SUCCESS && <CheckCircle2 className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />}
                       {log.type === LogType.INFO && <Info className="w-3 h-3 text-blue-500 dark:text-blue-400" />}
                       {log.type === LogType.TABLE && <Table className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />}
+                      {log.type === LogType.SYSTEM && <Cpu className="w-3 h-3 text-fuchsia-500 dark:text-fuchsia-400" />}
                     </span>
                     <div className="flex-1 min-w-0 font-mono text-[11px] leading-relaxed text-gray-700 dark:text-gray-300 break-words flex flex-col gap-1.5">
                        {log.type === LogType.TABLE ? (

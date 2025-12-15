@@ -119,7 +119,11 @@ class DockerClient {
     });
 
     this.socket.on("exit", (code) => {
-      this.onLog?.(LogType.SYSTEM, [`Process exited with code ${code}`]);
+      let msg = `Process exited with code ${code}`;
+      if (code === 127) msg += " (Command not found - check interpreter settings)";
+      if (code === 137) msg += " (Process killed - Memory Limit Exceeded)";
+      
+      this.onLog?.(LogType.SYSTEM, [msg]);
       this.onStatusChange?.('Ready');
     });
 
