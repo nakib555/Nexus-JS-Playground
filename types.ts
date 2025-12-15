@@ -28,7 +28,7 @@ export interface ExecutionContext {
   root: HTMLElement | null;
 }
 
-export type ExecutionMode = 'browser' | 'docker' | 'ai';
+export type ExecutionMode = 'browser' | 'docker';
 
 export interface Interpreter {
   id: string;
@@ -36,10 +36,11 @@ export interface Interpreter {
   type: ExecutionMode;
   version: string;
   description: string;
-  // New fields for Docker backend
   dockerImage?: string;
   extension?: string;
   entryCommand?: string;
+  installCommand?: string; // e.g. "pip install {libs}"
+  setupCode?: string; // Code to prepend (e.g. patching matplotlib)
 }
 
 export interface Language {

@@ -3,10 +3,20 @@ import { Language } from './types';
 export const LANGUAGES: Language[] = [
   { 
     id: 'javascript', 
-    name: 'JavaScript', 
+    name: 'Node.js', 
     prismId: 'javascript', 
     interpreters: [
-      { id: 'js-universal', name: 'Universal JS Runtime', type: 'ai', version: 'Latest', description: 'Executes JS with auto-library detection and DOM support.' }
+      { 
+        id: 'node-docker', 
+        name: 'Node.js 20', 
+        type: 'docker', 
+        version: '20-alpine', 
+        description: 'Node.js environment with npm support.',
+        dockerImage: 'node:20-alpine',
+        extension: 'js',
+        entryCommand: 'node',
+        installCommand: 'npm install --no-save'
+      }
     ]
   },
   { 
@@ -14,23 +24,40 @@ export const LANGUAGES: Language[] = [
     name: 'Python', 
     prismId: 'python', 
     interpreters: [
-      { id: 'py-universal', name: 'Universal Python Runtime', type: 'ai', version: '3.12', description: 'Executes Python with auto-library installation (NumPy, Pandas, etc).' }
+      { 
+        id: 'python-docker', 
+        name: 'Python 3.11', 
+        type: 'docker', 
+        version: '3.11', 
+        description: 'Standard Python environment. Supports pip.',
+        dockerImage: 'python:3.11-slim',
+        extension: 'py',
+        entryCommand: 'python3',
+        installCommand: 'pip install',
+        setupCode: `
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+def _nexus_show():
+    plt.savefig('output.png')
+    print("Saved plot to output.png")
+plt.show = _nexus_show
+`
+      }
     ]
   },
   { 
     id: 'html', 
-    name: 'HTML / CSS', 
+    name: 'HTML5', 
     prismId: 'markup', 
     interpreters: [
-      { id: 'html-universal', name: 'Universal Web Renderer', type: 'ai', version: 'HTML5', description: 'Renders modern Web standards with Tailwind support.' }
-    ]
-  },
-  { 
-    id: 'typescript', 
-    name: 'TypeScript', 
-    prismId: 'typescript', 
-    interpreters: [
-      { id: 'ts-universal', name: 'Universal TS Runtime', type: 'ai', version: '5.3', description: 'Executes TypeScript with full type support.' }
+      { 
+        id: 'html-browser', 
+        name: 'Browser Renderer', 
+        type: 'browser', 
+        version: 'HTML5', 
+        description: 'Client-side HTML/CSS/JS renderer.' 
+      }
     ]
   },
   { 
@@ -38,7 +65,17 @@ export const LANGUAGES: Language[] = [
     name: 'Go', 
     prismId: 'go', 
     interpreters: [
-      { id: 'go-universal', name: 'Universal Go Runtime', type: 'ai', version: '1.21', description: 'Executes Go code with module support.' }
+      { 
+        id: 'go-docker', 
+        name: 'Go 1.21', 
+        type: 'docker', 
+        version: '1.21', 
+        description: 'Go runtime.',
+        dockerImage: 'golang:1.21-alpine',
+        extension: 'go',
+        entryCommand: 'go run',
+        installCommand: 'go get'
+      }
     ]
   },
   { 
@@ -46,23 +83,17 @@ export const LANGUAGES: Language[] = [
     name: 'Rust', 
     prismId: 'rust', 
     interpreters: [
-      { id: 'rust-universal', name: 'Universal Rust Runtime', type: 'ai', version: '1.75', description: 'Executes Rust with Cargo crate simulation.' }
-    ]
-  },
-  { 
-    id: 'cpp', 
-    name: 'C++', 
-    prismId: 'cpp', 
-    interpreters: [
-      { id: 'cpp-universal', name: 'Universal C++ Runtime', type: 'ai', version: 'C++20', description: 'Executes C++ with standard library support.' }
-    ]
-  },
-  { 
-    id: 'java', 
-    name: 'Java', 
-    prismId: 'java', 
-    interpreters: [
-      { id: 'java-universal', name: 'Universal Java Runtime', type: 'ai', version: '21', description: 'Executes Java with Maven dependency simulation.' }
+      { 
+        id: 'rust-docker', 
+        name: 'Rust 1.75', 
+        type: 'docker', 
+        version: '1.75', 
+        description: 'Rust runtime with Cargo support.',
+        dockerImage: 'rust:1.75-alpine',
+        extension: 'rs',
+        entryCommand: 'rustc -o /tmp/main /tmp/code.rs && /tmp/main', // Simple single file compile
+        installCommand: '' // Cargo install is complex for single file, skipping for MVP
+      }
     ]
   },
   { 
@@ -70,7 +101,17 @@ export const LANGUAGES: Language[] = [
     name: 'Ruby', 
     prismId: 'ruby', 
     interpreters: [
-      { id: 'ruby-universal', name: 'Universal Ruby Runtime', type: 'ai', version: '3.2', description: 'Executes Ruby with Gem support.' }
+      { 
+        id: 'ruby-docker', 
+        name: 'Ruby 3.2', 
+        type: 'docker', 
+        version: '3.2', 
+        description: 'Ruby runtime.',
+        dockerImage: 'ruby:3.2-alpine',
+        extension: 'rb',
+        entryCommand: 'ruby',
+        installCommand: 'gem install'
+      }
     ]
   },
   { 
@@ -78,95 +119,73 @@ export const LANGUAGES: Language[] = [
     name: 'PHP', 
     prismId: 'php', 
     interpreters: [
-      { id: 'php-universal', name: 'Universal PHP Runtime', type: 'ai', version: '8.2', description: 'Executes PHP with Composer simulation.' }
-    ]
-  },
-  { 
-    id: 'bash', 
-    name: 'Bash', 
-    prismId: 'bash', 
-    interpreters: [
-      { id: 'bash-universal', name: 'Universal Shell', type: 'ai', version: '5.2', description: 'Executes Shell scripts with system utilities.' }
+      { 
+        id: 'php-docker', 
+        name: 'PHP 8.2', 
+        type: 'docker', 
+        version: '8.2', 
+        description: 'PHP CLI.',
+        dockerImage: 'php:8.2-cli-alpine',
+        extension: 'php',
+        entryCommand: 'php',
+        installCommand: '' 
+      }
     ]
   }
 ];
 
 export const LANGUAGE_TEMPLATES: Record<string, string> = {
-  javascript: `// Nexus Smart Runtime
-// Try importing a library! 
-// e.g. import _ from 'lodash';
+  javascript: `// Node.js Environment
+// Import any library! Libraries will be auto-installed.
+const _ = require('lodash');
+const fs = require('fs');
 
-const data = [
-  { id: 1, value: 10 },
-  { id: 2, value: 20 },
-  { id: 3, value: 30 }
-];
+console.log("Hello from Node.js " + process.version);
 
-console.log("Processing Data...");
-console.table(data);
+const numbers = [10, 20, 30, 40, 50];
+console.log("Average:", _.mean(numbers));
 
-// Dynamic Visualization
-const total = data.reduce((acc, curr) => acc + curr.value, 0);
-console.log(\`Total Value: \${total}\`);
+// Write files to see them in the output
+fs.writeFileSync('output.json', JSON.stringify({ status: 'active', data: numbers }, null, 2));
+console.log("Generated output.json");
 `,
   html: `<!-- 
-  Universal HTML Renderer 
-  Supports Tailwind CSS via CDN automatically
+  Browser Renderer
+  Everything here runs in your browser.
 -->
 <div class="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-10">
   <div class="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
-    Nexus Preview
+    Nexus Web
   </div>
   <p class="text-slate-400 text-lg mb-8">
-    Edit this code to see live updates.
+    Client-side execution active.
   </p>
-  <button class="px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-500/50">
-    Interactive Button
+  <button onclick="alert('Clicked!')" class="px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-500 transition-all shadow-lg">
+    Test Interaction
   </button>
 </div>
 `,
-  python: `# Nexus Smart Runtime - Auto Library Installation
-# Try importing ANY library (pandas, numpy, matplotlib, etc.)
+  python: `# Python Environment
+# Import ANY library - it will be auto-installed!
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
-print("1. Creating DataFrame...")
-df = pd.DataFrame({
-    'A': np.random.randn(10),
-    'B': np.random.randn(10)
-})
+print("Generating Data...")
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
 
-print("2. Analysis Result:")
-print(df.describe())
+df = pd.DataFrame({'x': x, 'y': y})
+print(df.head())
 
-print("3. Generating Visualization...")
-# The runtime will automatically render this plot
+print("Plotting...")
 plt.figure(figsize=(10, 6))
-plt.plot(df['A'], label='Series A')
-plt.plot(df['B'], label='Series B')
-plt.title("Random Data Analysis")
+plt.plot(x, y, label='Sine Wave', color='cyan')
+plt.title("Generated Plot")
 plt.legend()
-plt.show()
-`,
-  typescript: `interface User {
-  id: number;
-  name: string;
-  role: 'admin' | 'user';
-  active: boolean;
-}
-
-const users: User[] = [
-  { id: 1, name: "Alice", role: 'admin', active: true },
-  { id: 2, name: "Bob", role: 'user', active: false },
-  { id: 3, name: "Charlie", role: 'user', active: true },
-];
-
-console.table(users);
-
-const activeUsers = users.filter(u => u.active);
-console.log(\`Found \${activeUsers.length} active users.\`);
+plt.grid(True, alpha=0.3)
+plt.show() # This will be captured and shown in the Visual tab
 `,
   go: `package main
 
@@ -176,23 +195,13 @@ import (
 )
 
 func main() {
-	fmt.Println("Starting Goroutines Simulation...")
+	fmt.Println("Go Runtime Active")
 	
-	c := make(chan string)
-	
-	go count("sheep", c)
-	
-	for msg := range c {
-		fmt.Println(msg)
-	}
-}
-
-func count(thing string, c chan string) {
 	for i := 1; i <= 3; i++ {
-		c <- fmt.Sprintf("Counted %d %s", i, thing)
-		time.Sleep(time.Millisecond * 500)
+		fmt.Printf("Counting %d...\n", i)
+		time.Sleep(500 * time.Millisecond)
 	}
-	close(c)
+	fmt.Println("Done!")
 }
 `,
   rust: `fn main() {
@@ -202,34 +211,6 @@ func count(thing string, c chan string) {
     let doubled: Vec<i32> = numbers.iter().map(|x| x * 2).collect();
     
     println!("Doubled Values: {:?}", doubled);
-}
-`,
-  cpp: `#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <string>
-
-int main() {
-    std::vector<std::string> inventory = {"Sword", "Shield", "Potion"};
-    
-    std::cout << "Inventory:" << std::endl;
-    for (const auto& item : inventory) {
-        std::cout << "- " << item << std::endl;
-    }
-    
-    return 0;
-}
-`,
-  java: `import java.util.stream.IntStream;
-
-public class Main {
-    public static void main(String[] args) {
-        System.out.println("Java Runtime Active");
-        
-        IntStream.range(1, 10).forEach(i -> {
-            System.out.println("Processing item " + i);
-        });
-    }
 }
 `,
   ruby: `require 'json'
@@ -245,11 +226,6 @@ echo "PHP Runtime Active\n";
 $data = ['Apple', 'Banana', 'Cherry'];
 print_r($data);
 ?>
-`,
-  bash: `echo "Environment Check:"
-echo "------------------"
-echo "User: $(whoami)"
-echo "Shell: $SHELL"
 `
 };
 

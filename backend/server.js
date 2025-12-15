@@ -142,10 +142,11 @@ io.on('connection', (socket) => {
       if (HAS_DOCKER && docker) {
         const container = await docker.createContainer({
           Image: image,
-          Cmd: ['/bin/sh', '-c', 'while true; do sleep 1000; done'],
+          Cmd: ['/bin/sh', '-c', 'mkdir -p /workspace && while true; do sleep 1000; done'],
           Tty: false,
           OpenStdin: true,
-          HostConfig: { Memory: 512*1024*1024, CpuPeriod:100000, CpuQuota:50000, AutoRemove:true, NetworkMode:'none' }
+          WorkingDir: '/workspace', // Dedicated workspace
+          HostConfig: { Memory: 512*1024*1024, CpuPeriod:100000, CpuQuota:50000, AutoRemove:true, NetworkMode:'bridge' } // Allow network for installations
         });
         await container.start();
         activeSessions.set(socket.id, { type: 'docker', id: container.id });
@@ -172,13 +173,34 @@ io.on('connection', (socket) => {
       const container = docker.getContainer(session.id);
       try {
         const b64Code = Buffer.from(code).toString('base64');
-        const containerPath = `/tmp/${path.basename(filePath)}`;
+        const containerPath = `/workspace/code.${extension}`; // Fixed path in workspace
         const writeCmd = `echo "${b64Code}" | base64 -d > ${containerPath}`;
+        
+        // Write file
         const execWrite = await container.exec({ Cmd: ['sh','-c', writeCmd] });
         await execWrite.start({});
 
-        let finalCmd = entryCommand.includes('/tmp/code') ? entryCommand.replace(/\/tmp\/code\.\w+/, containerPath) : `${entryCommand} ${containerPath}`;
-        const execRun = await container.exec({ Cmd: ['sh','-c', finalCmd], AttachStdout:true, AttachStderr:true });
+        // Adjust entry command if it has the placeholder logic from before, OR just run straightforward
+        // We expect entryCommand like "pip install X && python3" or just "python3"
+        // If the command doesn't mention the file, we append it
+        let finalCmd = entryCommand;
+        
+        // Heuristic: if command mentions the file path placeholder or not
+        if (finalCmd.includes('/tmp/code')) {
+            finalCmd = finalCmd.replace(/\/tmp\/code\.\w+/, containerPath);
+        } else {
+             // If it ends with && (chained), append filename to last part? 
+             // Safer: user frontend sends "cmd" which might be "python3". We append filename.
+             // If it's "pip install X && python3", we become "pip install X && python3 /workspace/code.py"
+             finalCmd = `${finalCmd} ${containerPath}`;
+        }
+
+        const execRun = await container.exec({ 
+            Cmd: ['sh','-c', finalCmd], 
+            AttachStdout:true, 
+            AttachStderr:true,
+            WorkingDir: '/workspace'
+        });
         const stream = await execRun.start({});
         container.modem.demuxStream(stream, { write: c=>socket.emit('output',{stream:'stdout',data:c.toString()}) }, { write: c=>socket.emit('output',{stream:'stderr',data:c.toString()}) });
 
@@ -188,11 +210,9 @@ io.on('connection', (socket) => {
             if (!inspect.Running) {
               clearInterval(checkExit);
               
-              // Check for potential image/html output in container
-              // We check common output filenames and cat them out as base64 or text
-              // This relies on a small helper script injection
+              // Extract Outputs
               const outputScript = `
-                for f in /tmp/output.png /tmp/output.jpg /tmp/output.svg /tmp/output.html /tmp/output.json; do
+                for f in /workspace/output.png /workspace/output.jpg /workspace/output.svg /workspace/output.html /workspace/output.json; do
                   if [ -f "$f" ]; then
                     echo "---START-$f---"
                     cat "$f" | base64
@@ -207,7 +227,6 @@ io.on('connection', (socket) => {
               let outData = '';
               container.modem.demuxStream(outStream, { write: c => outData += c.toString() }, { write: () => {} });
               
-              // Parse the manual output stream from container
               const regex = /---START-(.*?)---([\s\S]*?)---END-.*?---/g;
               let match;
               while ((match = regex.exec(outData)) !== null) {
@@ -223,14 +242,12 @@ io.on('connection', (socket) => {
                   if (mime.startsWith('image/')) {
                       socket.emit('output', { stream: 'stdout', data: `data:${mime};base64,${contentB64}` });
                   } else {
-                      // Decode text types
                       const text = Buffer.from(contentB64, 'base64').toString('utf-8');
                       socket.emit('output', { stream: 'stdout', data: text });
                   }
               }
 
               socket.emit('exit', inspect.ExitCode);
-              await container.exec({ Cmd:['rm',containerPath] }).then(e=>e.start({}));
             }
           } catch (e) { 
               clearInterval(checkExit); 
@@ -247,15 +264,15 @@ io.on('connection', (socket) => {
         let cmd = session.cmd || 'node';
         let args = [filePath];
         
-        // Handle custom entry commands (like 'npx tsx')
         if (entryCommand) {
           if (entryCommand.includes('/tmp/code')) {
             cmd = 'sh';
             args = ['-c', entryCommand.replace(/\/tmp\/code\.\w+/, filePath)];
           } else {
-            const parts = entryCommand.split(' ');
-            cmd = parts[0];
-            args = [...parts.slice(1), filePath];
+            // Very basic local fallback for chained commands
+            // "pip install X && python" -> might fail locally if not in shell
+            cmd = 'sh';
+            args = ['-c', `${entryCommand} ${filePath}`];
           }
         }
         
