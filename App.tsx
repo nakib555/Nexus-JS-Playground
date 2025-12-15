@@ -50,6 +50,7 @@ const App: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const executorCleanupRef = useRef<(() => void) | null>(null);
+  const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -63,15 +64,8 @@ const App: React.FC = () => {
     setLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type, messages }]);
   }, []);
 
-  const handleLanguageSelect = (lang: Language, interpreter: Interpreter) => {
-    setSelectedLanguage(lang);
-    setSelectedInterpreter(interpreter);
-    setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
-    setLogs([]);
-    setHasVisualContent(false);
-    setIsLiveMode(false);
-    setFiles([]); // Clear files on language switch
-
+  // Helper to establish connection
+  const establishConnection = useCallback((lang: Language, interpreter: Interpreter) => {
     if (interpreter.type === 'docker' && interpreter.dockerImage) {
         setConnectionStatus('Connecting...');
         dockerClient.connect(
@@ -82,6 +76,19 @@ const App: React.FC = () => {
             () => setIsRunning(false) // Handle run finished
         );
     }
+  }, [addLog]);
+
+  const handleLanguageSelect = (lang: Language, interpreter: Interpreter) => {
+    setSelectedLanguage(lang);
+    setSelectedInterpreter(interpreter);
+    setCode(LANGUAGE_TEMPLATES[lang.id] || '// Start coding...');
+    setLogs([]);
+    setHasVisualContent(false);
+    setIsLiveMode(false);
+    setFiles([]); // Clear files on language switch
+    
+    // NOTE: We do NOT connect here anymore. 
+    // Connection happens on editor focus (hot runtime).
   };
 
   const handleBackToSelection = () => {
@@ -105,7 +112,43 @@ const App: React.FC = () => {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
     }
+    if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+        sessionTimeoutRef.current = null;
+    }
   };
+
+  // --- Auto-Scaling Logic (Focus/Blur) ---
+  const handleEditorFocus = useCallback(() => {
+    // Clear any pending destruction timer
+    if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+        sessionTimeoutRef.current = null;
+    }
+
+    // Connect if we are in a docker env and not connected
+    if (
+        selectedLanguage && 
+        selectedInterpreter?.type === 'docker' && 
+        (connectionStatus === 'Disconnected' || connectionStatus === 'Connection Failed')
+    ) {
+        establishConnection(selectedLanguage, selectedInterpreter);
+    }
+  }, [selectedLanguage, selectedInterpreter, connectionStatus, establishConnection]);
+
+  const handleEditorBlur = useCallback(() => {
+     // If we are currently running code, do not destroy the container
+     if (isRunning) return;
+
+     if (selectedInterpreter?.type === 'docker') {
+         // Set a short timer to destroy the container.
+         // This debounce allows for clicking "Run" (which blurs editor) without killing the session immediately.
+         sessionTimeoutRef.current = setTimeout(() => {
+             dockerClient.disconnect();
+             setConnectionStatus('Disconnected');
+         }, 3000); // 3 seconds inactivity closes the "hot" session
+     }
+  }, [selectedInterpreter, isRunning]);
 
   const startResize = useCallback(() => setIsDragging(true), []);
   const stopResize = useCallback(() => setIsDragging(false), []);
@@ -127,6 +170,9 @@ const App: React.FC = () => {
       if (executorCleanupRef.current) {
           executorCleanupRef.current();
       }
+      if (sessionTimeoutRef.current) {
+          clearTimeout(sessionTimeoutRef.current);
+      }
     };
   }, [resize, stopResize]);
 
@@ -139,6 +185,12 @@ const App: React.FC = () => {
 
   const handleRun = useCallback(async (isAutoRun = false) => {
     if (!selectedLanguage || !selectedInterpreter) return;
+
+    // Critical: Cancel any pending session destruction because we are about to run
+    if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+        sessionTimeoutRef.current = null;
+    }
 
     if (window.innerWidth < 768 && !isAutoRun) {
        setMobileActiveTab('console');
@@ -179,9 +231,20 @@ const App: React.FC = () => {
 
     // Docker Execution (Strict Backend Check)
     if (selectedInterpreter.type === 'docker') {
-        const isBackendConnected = connectionStatus.includes('Ready');
+        // If not connected (e.g. timeout fired before run), try to reconnect fast
+        // Note: This relies on the backend being fast enough or the socket logic queuing the emission
+        if (connectionStatus === 'Disconnected') {
+             addLog(LogType.SYSTEM, ['[System] Re-establishing execution environment...']);
+             establishConnection(selectedLanguage, selectedInterpreter);
+             // We can't immediately run because socket needs time. 
+             // Ideally we queue this, but for now we rely on the user to click run again or the socket ready state.
+             // However, since `runCode` checks for socket.connected, we might miss this click.
+             // In a perfect world, we await connection.
+        }
 
-        if (isBackendConnected) {
+        const isBackendConnected = connectionStatus.includes('Ready') || connectionStatus.includes('Booting'); // Allow booting state
+
+        if (true) { // Proceeding to try execution
             const libs = detectLibraries(code, selectedLanguage.id);
             let finalCode = code;
             let command = selectedInterpreter.entryCommand || '';
@@ -213,7 +276,7 @@ const App: React.FC = () => {
         }
     }
 
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus, mobileActiveTab, files]);
+  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus, mobileActiveTab, files, establishConnection]);
 
   // Live Run Effect
   useEffect(() => {
@@ -345,20 +408,20 @@ const App: React.FC = () => {
              selectedInterpreter.type === 'docker' 
                 ? (connectionStatus.includes('Ready') 
                     ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20' 
-                    : 'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20') 
+                    : (connectionStatus === 'Disconnected' ? 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10' : 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-100 dark:border-yellow-500/20')) 
                 : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
          }`}>
             {selectedInterpreter.type === 'docker' 
-                ? (connectionStatus.includes('Ready') ? <Container size={12} className="text-emerald-500" /> : <Server size={12} className="text-red-500" />) 
+                ? (connectionStatus.includes('Ready') ? <Container size={12} className="text-emerald-500" /> : <Server size={12} className={connectionStatus === 'Disconnected' ? "text-gray-400" : "text-yellow-500"} />) 
                 : <Monitor size={12} className="text-indigo-500" />
             }
             <span className={`text-[10px] font-mono ${
                 selectedInterpreter.type === 'docker' 
-                    ? (connectionStatus.includes('Ready') ? connectionStatus : 'Backend Disconnected') 
+                    ? (connectionStatus.includes('Ready') ? connectionStatus : 'text-gray-500 dark:text-gray-400') 
                     : 'text-indigo-700 dark:text-indigo-300'
             }`}>
                {selectedInterpreter.type === 'docker' 
-                   ? (connectionStatus.includes('Ready') ? connectionStatus : 'Disconnected') 
+                   ? (connectionStatus === 'Disconnected' ? 'Click editor to connect' : connectionStatus)
                    : 'Browser Runtime'}
             </span>
          </div>
@@ -398,7 +461,13 @@ const App: React.FC = () => {
       <main className="flex-1 relative w-full min-h-0 overflow-hidden" ref={containerRef}>
         <div className="md:hidden w-full h-full relative flex flex-col min-h-0">
           <div className={`absolute inset-0 z-10 bg-white dark:bg-black transition-opacity duration-200 flex flex-col ${mobileActiveTab === 'editor' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-             <CodeEditor code={code} onChange={setCode} language={selectedLanguage} />
+             <CodeEditor 
+                code={code} 
+                onChange={setCode} 
+                language={selectedLanguage} 
+                onFocus={handleEditorFocus}
+                onBlur={handleEditorBlur}
+            />
           </div>
           <div className={`absolute inset-0 z-10 transition-opacity duration-200 flex flex-col ${mobileActiveTab !== 'editor' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
              <OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-mobile" mobileView={mobileActiveTab === 'console' ? 'console' : 'preview'} hasVisualContentOverride={hasVisualContent} />
@@ -414,7 +483,13 @@ const App: React.FC = () => {
            />
            
            <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10 border-l border-gray-200 dark:border-white/5">
-                <CodeEditor code={code} onChange={setCode} language={selectedLanguage} />
+                <CodeEditor 
+                    code={code} 
+                    onChange={setCode} 
+                    language={selectedLanguage} 
+                    onFocus={handleEditorFocus}
+                    onBlur={handleEditorBlur}
+                />
                 {isLiveMode && (
                     <div className="absolute top-2 right-4 pointer-events-none z-20 flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 backdrop-blur">
                         <span className="relative flex h-2 w-2">

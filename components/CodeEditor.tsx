@@ -6,6 +6,8 @@ interface CodeEditorProps {
   code: string;
   onChange: (value: string) => void;
   language: Language;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 declare global {
@@ -27,6 +29,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   code, 
   onChange, 
   language,
+  onFocus,
+  onBlur
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
@@ -152,6 +156,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             onChange={(e) => onChange(e.target.value)}
             onScroll={handleScroll}
             onKeyDown={handleKeyDown}
+            onFocus={onFocus}
+            onBlur={onBlur}
             spellCheck={false}
             autoCapitalize="off"
             autoComplete="off"
