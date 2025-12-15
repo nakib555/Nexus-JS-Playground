@@ -12,7 +12,6 @@ import { LogEntry, LogType, Language, Interpreter, Command as CommandType, Virtu
 import { executeUserCode } from './utils/executor';
 import { dockerClient } from './utils/dockerClient';
 import { detectLibraries } from './utils/codeAnalysis';
-import { executeWithAI } from './utils/aiRunner';
 
 type MobileTab = 'editor' | 'preview' | 'console';
 type Theme = 'dark' | 'light';
@@ -177,7 +176,7 @@ const App: React.FC = () => {
         return;
     }
 
-    // Docker Execution (with AI Fallback)
+    // Docker Execution (Strict Backend Check)
     if (selectedInterpreter.type === 'docker') {
         const isBackendConnected = connectionStatus.includes('Ready');
 
@@ -207,33 +206,10 @@ const App: React.FC = () => {
             dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command, files);
             setTimeout(() => setIsRunning(false), 1000);
         } else {
-            // AI Runtime Fallback
-            if (!isAutoRun) addLog(LogType.SYSTEM, [`[Nexus] Backend unavailable. Switching to AI Runtime (Simulation)...`]);
-            
-            try {
-                await executeWithAI(
-                    code,
-                    selectedLanguage.name,
-                    selectedInterpreter,
-                    addLog,
-                    (htmlContent) => {
-                        setHasVisualContent(true);
-                        if (window.innerWidth < 768 && !isAutoRun) setMobileActiveTab('preview');
-                        const rootEl = getVisualRoot();
-                        if (rootEl) {
-                             const cleanup = executeUserCode(htmlContent, rootEl, addLog, 'html', undefined, undefined, files);
-                             executorCleanupRef.current = cleanup;
-                        }
-                    },
-                    abortControllerRef.current?.signal
-                );
-            } catch (error: any) {
-                if (error.name !== 'AbortError') {
-                    addLog(LogType.ERROR, [`Execution Error: ${error.message}`]);
-                }
-            } finally {
-                setIsRunning(false);
-            }
+            // Error State - No AI Fallback
+            addLog(LogType.ERROR, [`Execution Failed: Backend not connected.`]);
+            addLog(LogType.SYSTEM, [`Please check your connection settings or ensure the backend server is running.`]);
+            setIsRunning(false);
         }
     }
 
@@ -369,20 +345,20 @@ const App: React.FC = () => {
              selectedInterpreter.type === 'docker' 
                 ? (connectionStatus.includes('Ready') 
                     ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20' 
-                    : 'bg-purple-50 dark:bg-purple-500/10 border-purple-100 dark:border-purple-500/20') 
+                    : 'bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20') 
                 : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
          }`}>
             {selectedInterpreter.type === 'docker' 
-                ? (connectionStatus.includes('Ready') ? <Container size={12} className="text-emerald-500" /> : <Sparkles size={12} className="text-purple-500" />) 
+                ? (connectionStatus.includes('Ready') ? <Container size={12} className="text-emerald-500" /> : <Server size={12} className="text-red-500" />) 
                 : <Monitor size={12} className="text-indigo-500" />
             }
             <span className={`text-[10px] font-mono ${
                 selectedInterpreter.type === 'docker' 
-                    ? (connectionStatus.includes('Ready') ? connectionStatus : 'AI Runtime') 
+                    ? (connectionStatus.includes('Ready') ? connectionStatus : 'Backend Disconnected') 
                     : 'text-indigo-700 dark:text-indigo-300'
             }`}>
                {selectedInterpreter.type === 'docker' 
-                   ? (connectionStatus.includes('Ready') ? connectionStatus : 'AI Runtime') 
+                   ? (connectionStatus.includes('Ready') ? connectionStatus : 'Disconnected') 
                    : 'Browser Runtime'}
             </span>
          </div>
