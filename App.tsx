@@ -158,20 +158,20 @@ const App: React.FC = () => {
                 finalCode = selectedInterpreter.setupCode + '\n' + code;
             }
 
-            // Handle Library Installation
+            // Handle Library Installation Generically
             if (libs.length > 0 && selectedInterpreter.installCommand) {
                 addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
                 addLog(LogType.SYSTEM, [`[System] Installing dependencies...`]);
                 
-                const installCmd = selectedInterpreter.installCommand.replace('{libs}', libs.join(' '));
-                
-                if (selectedLanguage.id === 'python') {
-                     command = `pip install ${libs.join(' ')} && ${command}`;
-                } else if (selectedLanguage.id === 'javascript') {
-                     command = `npm install ${libs.join(' ')} && ${command}`;
-                } else if (selectedLanguage.id === 'go') {
-                     command = `go get ${libs.join(' ')} && ${command}`;
+                let installCmd = selectedInterpreter.installCommand;
+                // Replace placeholder if exists, otherwise append
+                if (installCmd.includes('{libs}')) {
+                    installCmd = installCmd.replace('{libs}', libs.join(' '));
+                } else {
+                    installCmd = `${installCmd} ${libs.join(' ')}`;
                 }
+                
+                command = `${installCmd} && ${command}`;
             }
 
             dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command);
