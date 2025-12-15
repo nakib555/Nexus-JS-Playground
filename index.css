@@ -1,157 +1,141 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Light Mode Syntax & Theme */
-  --syntax-bg: #ffffff;
-  --syntax-comment: #6a737d;
-  --syntax-string: #0a3069;
-  --syntax-keyword: #d73a49;
-  --syntax-number: #005cc5;
-  --syntax-function: #6f42c1;
-  --syntax-builtin: #e36209;
-  --syntax-operator: #005cc5;
-  --syntax-punctuation: #24292e;
+  /* Modern Dark Theme Variables */
+  --bg-app: #09090b;
+  --bg-panel: #121214;
+  --bg-sidebar: #0c0c0e;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --accent-primary: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.15);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
   
-  --bg-body: #f8f9fa; /* Lighter gray */
-  --text-body: #111827;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-html.dark {
-  /* Dark Mode Syntax & Theme */
-  --syntax-bg: #0C0C0C;
-  --syntax-comment: #777;
-  --syntax-string: #9eceff;
-  --syntax-keyword: #ff897a;
-  --syntax-number: #a2c7ff;
-  --syntax-function: #e0b4ff;
-  --syntax-builtin: #ffb86c;
-  --syntax-operator: #a2c7ff;
-  --syntax-punctuation: #8b949e;
-  
-  --bg-body: #0A0A0A; /* Richer black */
-  --text-body: #e2e8f0;
+html.light {
+  --bg-app: #ffffff;
+  --bg-panel: #f8fafc;
+  --bg-sidebar: #f1f5f9;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
 }
 
 body {
-  background-color: var(--bg-body);
-  color: var(--text-body);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease, color 0.3s ease;
-  
-  /* Fix mobile viewport issues */
-  position: fixed;
-  inset: 0;
-  width: 100%;
+  overflow: hidden; /* App handles scrolling */
   height: 100dvh;
-  overflow: hidden;
+  width: 100vw;
 }
 
-html.dark body {
-  background: radial-gradient(ellipse 80% 50% at 50% -20%,rgba(120,119,198,0.2),hsla(0,0%,100%,0));
-  background-color: #0A0A0A;
-}
-
-/* CRITICAL FIX: Ensure root takes full height for Flex layout to work correctly */
 #root {
-  width: 100%;
   height: 100%;
-  overflow: hidden;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-::selection {
-  background: rgba(99, 102, 241, 0.3);
-  color: inherit;
-}
-
-/* Modern Thin Scrollbar */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
+
 ::-webkit-scrollbar-track {
-  background: transparent; 
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.4); 
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border: 2px solid transparent;
-  background-clip: content-box; 
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.6); 
-}
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3); 
-}
-::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-/* Visual Root Sandbox Styles */
-#visual-root {
-  width: 100%;
-  height: 100%;
-  overflow: hidden; /* Iframe handles internal scrolling */
-  position: relative;
-  background-size: 24px 24px;
-  background-color: transparent;
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
 }
 
-/* Grid background handled in CSS to switch with theme */
-.visual-grid-bg {
-  background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.05) 1px, transparent 0);
-}
-.dark .visual-grid-bg {
-  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 
-/* Prism Syntax Highlighting */
-.token.comment, .token.prolog, .token.doctype, .token.cdata { color: var(--syntax-comment); font-style: italic; }
-.token.string, .token.attr-value { color: var(--syntax-string); }
-.token.keyword, .token.atrule, .token.control-flow { color: var(--syntax-keyword); }
-.token.number, .token.boolean, .token.constant, .token.symbol { color: var(--syntax-number); }
-.token.function, .token.class-name { color: var(--syntax-function); }
-.token.builtin, .token.important, .token.regex, .token.variable { color: var(--syntax-builtin); }
-.token.operator, .token.entity, .token.url { color: var(--syntax-operator); }
-.token.punctuation { color: var(--syntax-punctuation); }
-.token.property, .token.tag { color: var(--syntax-keyword); }
-.token.attr-name { color: var(--syntax-builtin); }
+/* Utilities */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
 
-.token.bold { font-weight: bold; }
-.token.italic { font-style: italic; }
+.glass-panel {
+  background: rgba(18, 18, 20, 0.7);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-color);
+}
+
+/* Editor Gutter & Syntax */
+.code-gutter {
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+}
+
+/* Syntax Highlighting overrides for Prism */
+code[class*="language-"],
+pre[class*="language-"] {
+  text-shadow: none !important;
+  font-family: var(--font-mono) !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  direction: ltr;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  tab-size: 2;
+  hyphens: none;
+}
 
 /* Loader */
 #loading-overlay {
   position: fixed;
   inset: 0;
-  background: var(--bg-body);
+  background: var(--bg-app);
+  z-index: 9999;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
   transition: opacity 0.5s ease;
 }
+
 .loader {
-  width: 48px;
-  height: 48px;
-  border: 3px solid;
-  border-color: #6366f1;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--accent-primary);
   border-bottom-color: transparent;
   border-radius: 50%;
-  display: inline-block;
-  box-sizing: border-box;
   animation: rotation 1s linear infinite;
 }
+
 @keyframes rotation {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Animations */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }

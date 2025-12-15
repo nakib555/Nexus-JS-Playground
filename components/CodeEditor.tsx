@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Language } from '../types';
@@ -41,11 +42,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   useEffect(() => {
     setLineCount(code.split('\n').length);
     
-    // Only perform basic syntax checking for JavaScript
+    // Simple JS Syntax Check
     if (language.id === 'javascript') {
       const timer = setTimeout(() => {
         try {
-          // A simple check using new Function is cheap and effective for syntax errors.
           new Function(code);
           setError(null);
         } catch (err: any) {
@@ -102,75 +102,72 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [code, language.prismId]);
 
   return (
-    <div className="relative w-full h-full bg-white dark:bg-[#0C0C0C] font-mono text-[13px] group flex flex-col overflow-hidden transition-colors">
-      
-      <div className="relative flex-1 flex min-h-0">
-        {/* Gutter */}
-        <div 
-          ref={gutterRef}
-          className="w-10 bg-gray-50 dark:bg-[#070707] border-r border-gray-200 dark:border-white/5 text-gray-400 dark:text-gray-700 select-none flex flex-col items-end py-4 shrink-0 z-20 overflow-hidden transition-colors"
+    <div className="relative w-full h-full bg-[#0c0c0e] font-mono text-[13px] group flex min-h-0 overflow-hidden">
+      {/* Gutter */}
+      <div 
+        ref={gutterRef}
+        className="w-12 bg-[#0c0c0e] border-r border-white/5 text-slate-600 select-none flex flex-col items-end py-4 shrink-0 z-20 overflow-hidden"
+      >
+         <div className="w-full text-right pr-3">
+          {Array.from({ length: Math.max(lineCount, 50) }).map((_, i) => {
+            const lineNum = i + 1;
+            const isError = error?.line === lineNum;
+            return (
+              <div 
+                key={i} 
+                className={`h-6 leading-6 text-[10px] font-medium transition-colors ${isError ? 'text-red-500' : ''}`}
+              >
+                {lineNum}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Code Area */}
+      <div className="relative flex-1 min-w-0 h-full">
+        {/* Syntax Highlight Layer */}
+        <pre
+          ref={preRef}
+          aria-hidden="true"
+          className="absolute inset-0 m-0 p-4 font-mono text-[13px] leading-6 whitespace-pre pointer-events-none z-0 overflow-hidden text-slate-300"
+          style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2 }}
         >
-           <div className="w-full text-right pr-2">
-            {Array.from({ length: Math.max(lineCount, 50) }).map((_, i) => {
-              const lineNum = i + 1;
-              const isError = error?.line === lineNum;
-              return (
-                <div 
-                  key={i} 
-                  className={`h-6 leading-6 text-[10px] transition-colors ${isError ? 'text-red-500 font-bold' : ''}`}
-                >
-                  {lineNum}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+           <code dangerouslySetInnerHTML={{ __html: highlightedCode + '<br/>' }} className="block min-w-full min-h-full" />
+           
+           {/* Error Highlight */}
+           {error && error.line > 0 && (
+              <div 
+                className="absolute left-0 right-0 bg-red-500/10 border-t border-b border-red-500/20"
+                style={{ 
+                  top: `${16 + (error.line - 1) * 24}px`, 
+                  height: '24px' 
+                }}
+              />
+           )}
+        </pre>
 
-        {/* Code Area */}
-        <div className="relative flex-1 min-w-0 h-full text-gray-900 dark:text-gray-100">
-          {/* Syntax Highlight Layer */}
-          <pre
-            ref={preRef}
-            aria-hidden="true"
-            className="absolute inset-0 m-0 p-4 font-mono text-[13px] leading-6 whitespace-pre pointer-events-none z-0 overflow-hidden"
-            style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2 }}
-          >
-             <code dangerouslySetInnerHTML={{ __html: highlightedCode + '<br/>' }} className="block min-w-full min-h-full" />
-             
-             {/* Error Line Highlight - Inside pre to scroll with content */}
-             {error && error.line > 0 && (
-                <div 
-                  className="absolute left-0 right-0 bg-red-500/5 border-y border-red-500/10 pointer--events-none"
-                  style={{ 
-                    top: `${16 + (error.line - 1) * 24}px`, 
-                    height: '24px' 
-                  }}
-                />
-             )}
-          </pre>
-
-          {/* Input Layer */}
-          <textarea
-            ref={textareaRef}
-            value={code}
-            onChange={(e) => onChange(e.target.value)}
-            onScroll={handleScroll}
-            onKeyDown={handleKeyDown}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoComplete="off"
-            className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-indigo-600 dark:caret-indigo-400 outline-none resize-none font-mono text-[13px] leading-6 whitespace-pre z-10 selection:bg-indigo-200 dark:selection:bg-indigo-500/20 overflow-auto overscroll-none touch-auto"
-            style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2, backgroundColor: 'transparent' }}
-          />
-        </div>
+        {/* Input Layer */}
+        <textarea
+          ref={textareaRef}
+          value={code}
+          onChange={(e) => onChange(e.target.value)}
+          onScroll={handleScroll}
+          onKeyDown={handleKeyDown}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
+          className="absolute inset-0 w-full h-full p-4 bg-transparent text-transparent caret-indigo-500 outline-none resize-none font-mono text-[13px] leading-6 whitespace-pre z-10 selection:bg-indigo-500/20 overflow-auto overscroll-none touch-auto"
+          style={{ fontFamily: '"JetBrains Mono", monospace', tabSize: 2 }}
+        />
       </div>
 
       {/* Syntax Error Toast */}
       {error && (
         <div className="absolute bottom-4 right-6 z-50 animate-in fade-in slide-in-from-bottom-2 duration-300 pointer-events-none">
-            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur border border-red-500/30 text-red-600 dark:text-red-200 pl-3 pr-4 py-2 rounded-lg shadow-2xl flex items-center gap-3">
+            <div className="bg-[#18181b] border border-red-500/30 text-red-200 pl-3 pr-4 py-2 rounded-lg shadow-2xl flex items-center gap-3">
             <AlertCircle className="w-4 h-4 text-red-500" />
             <div className="flex flex-col">
                 <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Syntax Error · Line {error.line}</span>

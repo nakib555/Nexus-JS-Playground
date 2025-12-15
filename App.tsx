@@ -1,5 +1,11 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Sun, Moon, ArrowLeft, Menu, Container, Server, Zap, Radio, FolderOpen, X } from 'lucide-react';
+import { 
+  Play, RotateCcw, Sparkles, Settings2, Sun, Moon, ArrowLeft, 
+  Menu, Container, Server, Zap, Radio, FolderOpen, PanelBottom,
+  PanelRight, PanelLeft, X, Command, MoreHorizontal, Maximize2, Minimize2
+} from 'lucide-react';
+
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
@@ -13,77 +19,136 @@ import { executeUserCode } from './utils/executor';
 import { dockerClient } from './utils/dockerClient';
 import { detectLibraries } from './utils/codeAnalysis';
 
-type MobileTab = 'editor' | 'preview' | 'console';
+// Theme Type
 type Theme = 'dark' | 'light';
 
 const App: React.FC = () => {
+  // --- Core State ---
   const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(null);
   const [selectedInterpreter, setSelectedInterpreter] = useState<Interpreter | null>(null);
-  
   const [code, setCode] = useState<string>('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [files, setFiles] = useState<VirtualFile[]>([]);
   
+  // --- Layout State ---
+  const [isFileExplorerOpen, setIsFileExplorerOpen] = useState(true);
+  const [isOutputOpen, setIsOutputOpen] = useState(true);
+  const [outputSize, setOutputSize] = useState(40); // Percentage: Height on Mobile, Width on Desktop
+  const [sidebarWidth, setSidebarWidth] = useState(240); // Pixel width for sidebar
+  
+  // --- UI State ---
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('nexus-theme');
       if (saved === 'dark' || saved === 'light') return saved;
-      if (window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+      return 'dark'; // Default to dark
     }
     return 'dark';
   });
-  
-  const [editorWidth, setEditorWidth] = useState(55);
-  const [isFileExplorerOpen, setIsFileExplorerOpen] = useState(false); // Default closed for cleaner start
-  const [mobileActiveTab, setMobileActiveTab] = useState<MobileTab>('editor');
-  
-  const [isRunning, setIsRunning] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string>('Disconnected');
+  const [hasVisualContent, setHasVisualContent] = useState(false);
 
+  // --- Modals ---
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [hasVisualContent, setHasVisualContent] = useState(false);
-  
+
+  // --- Refs ---
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const executorCleanupRef = useRef<(() => void) | null>(null);
   const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isResizingRef = useRef(false);
 
-  // Initialize responsive state
+  // --- Initialization & Effects ---
   useEffect(() => {
-    if (window.innerWidth >= 768) {
-      setIsFileExplorerOpen(true);
-    }
+    // Initial responsive setup
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsFileExplorerOpen(false); // Closed by default on mobile
+        setOutputSize(40); // 40% height on mobile
+      } else {
+        setIsFileExplorerOpen(true);
+        setOutputSize(40); // 40% width on desktop
+      }
+    };
+    
+    handleResize(); // Run once
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.toggle('dark', theme === 'dark');
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    }
     localStorage.setItem('nexus-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
+  // --- Resize Logic ---
+  const startResize = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = window.innerWidth < 768 ? 'row-resize' : 'col-resize';
+    document.body.style.userSelect = 'none';
+    
+    const onMove = (mv: MouseEvent | TouchEvent) => {
+      if (!isResizingRef.current || !containerRef.current) return;
+      
+      const clientX = 'touches' in mv ? mv.touches[0].clientX : (mv as MouseEvent).clientX;
+      const clientY = 'touches' in mv ? mv.touches[0].clientY : (mv as MouseEvent).clientY;
+      const rect = containerRef.current.getBoundingClientRect();
+      const isMobile = window.innerWidth < 768;
+
+      let newSize;
+      if (isMobile) {
+        // Vertical Resize (Bottom Panel Height)
+        const height = rect.height;
+        const relativeY = clientY - rect.top;
+        newSize = ((height - relativeY) / height) * 100;
+      } else {
+        // Horizontal Resize (Right Panel Width)
+        const width = rect.width;
+        const relativeX = clientX - rect.left;
+        newSize = ((width - relativeX) / width) * 100;
+      }
+
+      // Clamping
+      if (newSize < 10) newSize = 10;
+      if (newSize > 85) newSize = 85;
+      
+      setOutputSize(newSize);
+    };
+
+    const onUp = () => {
+      isResizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchend', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchend', onUp);
+  }, []);
+
+  // --- Logs & Execution ---
   const addLog = useCallback((type: LogType, messages: any[]) => {
     setLogs(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), timestamp: Date.now(), type, messages }]);
   }, []);
-
-  // Helper to establish connection
-  const establishConnection = useCallback((lang: Language, interpreter: Interpreter) => {
-    if (interpreter.type === 'docker' && interpreter.dockerImage) {
-        setConnectionStatus('Connecting...');
-        dockerClient.connect(
-            lang.id,
-            interpreter.dockerImage,
-            addLog,
-            (status) => setConnectionStatus(status),
-            () => setIsRunning(false) // Handle run finished
-        );
-    }
-  }, [addLog]);
 
   const handleLanguageSelect = (lang: Language, interpreter: Interpreter) => {
     setSelectedLanguage(lang);
@@ -92,118 +157,31 @@ const App: React.FC = () => {
     setLogs([]);
     setHasVisualContent(false);
     setIsLiveMode(false);
-    setFiles([]); // Clear files on language switch
-  };
-
-  const handleBackToSelection = () => {
-    if (selectedInterpreter?.type === 'docker') {
-        dockerClient.disconnect();
-    }
-    if (executorCleanupRef.current) {
-        executorCleanupRef.current();
-        executorCleanupRef.current = null;
-    }
-    
-    setSelectedLanguage(null);
-    setSelectedInterpreter(null);
-    setLogs([]);
     setFiles([]);
-    setMobileActiveTab('editor');
-    setIsRunning(false);
-    setHasVisualContent(false);
-    if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-    }
-    if (sessionTimeoutRef.current) {
-        clearTimeout(sessionTimeoutRef.current);
-        sessionTimeoutRef.current = null;
-    }
+    // Auto-open output on mobile/desktop reset
+    setIsOutputOpen(true);
   };
 
-  const handleEditorFocus = useCallback(() => {
-    if (sessionTimeoutRef.current) {
-        clearTimeout(sessionTimeoutRef.current);
-        sessionTimeoutRef.current = null;
+  const establishConnection = useCallback((lang: Language, interpreter: Interpreter) => {
+    if (interpreter.type === 'docker' && interpreter.dockerImage) {
+        setConnectionStatus('Connecting...');
+        dockerClient.connect(
+            lang.id,
+            interpreter.dockerImage,
+            addLog,
+            (status) => setConnectionStatus(status),
+            () => setIsRunning(false)
+        );
     }
-
-    if (
-        selectedLanguage && 
-        selectedInterpreter?.type === 'docker' && 
-        (connectionStatus === 'Disconnected' || connectionStatus === 'Connection Failed')
-    ) {
-        establishConnection(selectedLanguage, selectedInterpreter);
-    }
-  }, [selectedLanguage, selectedInterpreter, connectionStatus, establishConnection]);
-
-  const handleEditorBlur = useCallback(() => {
-     if (isRunning) return;
-
-     if (selectedInterpreter?.type === 'docker') {
-         sessionTimeoutRef.current = setTimeout(() => {
-             dockerClient.disconnect();
-             setConnectionStatus('Disconnected');
-         }, 3000); 
-     }
-  }, [selectedInterpreter, isRunning]);
-
-  const startResize = useCallback(() => setIsDragging(true), []);
-  const stopResize = useCallback(() => setIsDragging(false), []);
-  
-  const resize = useCallback((e: MouseEvent) => {
-    if (isDragging && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const newWidth = ((e.clientX - rect.left) / rect.width) * 100;
-      if (newWidth > 20 && newWidth < 80) setEditorWidth(newWidth);
-    }
-  }, [isDragging]);
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', resize);
-      window.addEventListener('mouseup', stopResize);
-    }
-    return () => {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResize);
-    };
-  }, [isDragging, resize, stopResize]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-        if (executorCleanupRef.current) executorCleanupRef.current();
-        if (sessionTimeoutRef.current) clearTimeout(sessionTimeoutRef.current);
-    };
-  }, []);
-
-  const handleClearLogs = useCallback(() => setLogs([]), []);
-
-  const getVisualRoot = useCallback(() => {
-    // Only one visual root ID is needed if we manage layout correctly,
-    // but keeping separate IDs for safety if DOM nodes are moving.
-    // However, in this layout, components are conditionally rendered or hidden.
-    const isMobile = window.innerWidth < 768;
-    return document.getElementById(isMobile ? 'visual-root-mobile' : 'visual-root-desktop');
-  }, []);
+  }, [addLog]);
 
   const handleRun = useCallback(async (isAutoRun = false) => {
     if (!selectedLanguage || !selectedInterpreter) return;
+    
+    // Ensure output is open to see results
+    if (!isOutputOpen) setIsOutputOpen(true);
 
-    if (sessionTimeoutRef.current) {
-        clearTimeout(sessionTimeoutRef.current);
-        sessionTimeoutRef.current = null;
-    }
-
-    if (window.innerWidth < 768 && !isAutoRun) {
-       // On mobile, switch to console/preview on run
-       // If previous run had visual, maybe prefer preview, else console
-       setMobileActiveTab('console');
-    }
-
-    if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-    }
+    if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
     
     if (executorCleanupRef.current) {
@@ -212,92 +190,64 @@ const App: React.FC = () => {
     }
 
     setIsRunning(true);
-    handleClearLogs();
+    if (!isAutoRun) handleClearLogs();
     setHasVisualContent(false);
 
+    // Browser Mode
     if (selectedInterpreter.type === 'browser') {
-        const rootEl = getVisualRoot();
+        const rootEl = document.getElementById('visual-root');
         if (rootEl) {
             setHasVisualContent(true);
-            if (window.innerWidth < 768 && !isAutoRun) setMobileActiveTab('preview');
             executorCleanupRef.current = executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => {
                 setHasVisualContent(hasContent);
-                if (hasContent && window.innerWidth < 768 && (!isAutoRun || mobileActiveTab === 'preview')) {
-                    setMobileActiveTab('preview');
-                }
             }, files);
         }
         setIsRunning(false);
         return;
     }
 
+    // Docker/Server Mode
     if (selectedInterpreter.type === 'docker') {
-        if (connectionStatus === 'Disconnected') {
-             addLog(LogType.SYSTEM, ['[System] Re-establishing execution environment...']);
+        if (connectionStatus === 'Disconnected' || connectionStatus === 'Connection Failed') {
+             addLog(LogType.SYSTEM, ['[System] Connecting to runtime environment...']);
              establishConnection(selectedLanguage, selectedInterpreter);
         }
 
-        const isBackendConnected = connectionStatus.includes('Ready') || connectionStatus.includes('Booting') || connectionStatus === 'Connecting...';
+        // We allow sending run command even if connecting (it connects automatically)
+        const libs = detectLibraries(code, selectedLanguage.id);
+        let finalCode = code;
+        let command = selectedInterpreter.entryCommand || '';
 
-        if (isBackendConnected || true) { 
-            const libs = detectLibraries(code, selectedLanguage.id);
-            let finalCode = code;
-            let command = selectedInterpreter.entryCommand || '';
-
-            if (selectedInterpreter.setupCode) {
-                finalCode = selectedInterpreter.setupCode + '\n' + code;
-            }
-
-            if (libs.length > 0 && selectedInterpreter.installCommand) {
-                if (!isAutoRun) addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
-                let installCmd = selectedInterpreter.installCommand;
-                if (installCmd.includes('{libs}')) {
-                    installCmd = installCmd.replace('{libs}', libs.join(' '));
-                } else {
-                    installCmd = `${installCmd} ${libs.join(' ')}`;
-                }
-                command = `${installCmd} && ${command}`;
-            }
-
-            dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command, files);
-        } else {
-            addLog(LogType.ERROR, [`Execution Failed: Backend not connected.`]);
-            addLog(LogType.SYSTEM, [`Please check your connection settings or ensure the backend server is running.`]);
-            setIsRunning(false);
+        if (selectedInterpreter.setupCode) {
+            finalCode = selectedInterpreter.setupCode + '\n' + code;
         }
+
+        if (libs.length > 0 && selectedInterpreter.installCommand) {
+            if (!isAutoRun) addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
+            let installCmd = selectedInterpreter.installCommand;
+            if (installCmd.includes('{libs}')) {
+                installCmd = installCmd.replace('{libs}', libs.join(' '));
+            } else {
+                installCmd = `${installCmd} ${libs.join(' ')}`;
+            }
+            command = `${installCmd} && ${command}`;
+        }
+
+        dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command, files);
     }
+  }, [code, addLog, selectedLanguage, selectedInterpreter, connectionStatus, files, isOutputOpen, establishConnection]);
 
-  }, [code, addLog, handleClearLogs, selectedLanguage, selectedInterpreter, getVisualRoot, connectionStatus, mobileActiveTab, files, establishConnection]);
-
-  // Live Run Effect
+  // Live Mode Effect
   useEffect(() => {
     if (!isLiveMode) return;
     const debounceMs = selectedInterpreter?.type === 'browser' ? 800 : 2500;
     const timer = setTimeout(() => {
-        if (code.trim()) {
-            handleRun(true);
-        }
+        if (code.trim()) handleRun(true);
     }, debounceMs);
     return () => clearTimeout(timer);
   }, [code, isLiveMode, handleRun, selectedInterpreter]);
 
-  const handleReset = () => {
-    if (selectedLanguage && window.confirm("Reset code to default example?")) {
-      setCode(LANGUAGE_TEMPLATES[selectedLanguage.id] || '');
-      handleClearLogs();
-      const rootEl = getVisualRoot();
-      if (rootEl) rootEl.innerHTML = '';
-      setHasVisualContent(false);
-      setMobileActiveTab('editor');
-    }
-  };
-
-  const handleCodeGenerated = (newCode: string) => {
-    setCode(newCode);
-    setTimeout(() => {
-       if (window.innerWidth < 768) setMobileActiveTab('editor');
-    }, 100);
-  };
+  const handleClearLogs = () => setLogs([]);
   
   const handleFileUpload = useCallback(async (fileList: FileList) => {
     const newFiles: VirtualFile[] = [];
@@ -319,32 +269,26 @@ const App: React.FC = () => {
                 type: file.type || 'application/octet-stream',
                 lastModified: file.lastModified
             });
-        } catch (e) {
-            console.error("Upload failed", e);
-            addLog(LogType.ERROR, [`Failed to upload ${file.name}`]);
-        }
+        } catch (e) { console.error("Upload failed", e); }
     }
     setFiles(prev => [...prev, ...newFiles]);
     addLog(LogType.SYSTEM, [`Uploaded ${newFiles.length} file(s).`]);
   }, [addLog]);
 
-  const handleFileDelete = useCallback((id: string) => {
-     setFiles(prev => prev.filter(f => f.id !== id));
-  }, []);
-
+  // --- Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
-            e.preventDefault();
-            setIsCommandPaletteOpen(v => !v);
+            e.preventDefault(); setIsCommandPaletteOpen(v => !v);
         }
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-             e.preventDefault();
-             handleRun();
+             e.preventDefault(); handleRun();
         }
         if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
-             e.preventDefault();
-             setIsFileExplorerOpen(v => !v);
+             e.preventDefault(); setIsFileExplorerOpen(v => !v);
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+             e.preventDefault(); setIsOutputOpen(v => !v);
         }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -356,215 +300,181 @@ const App: React.FC = () => {
     { id: 'live', name: 'Toggle Live Mode', onSelect: () => setIsLiveMode(v => !v), icon: <Zap size={16}/>, section: 'Actions' },
     { id: 'ai', name: 'AI Architect', onSelect: () => setIsAIModalOpen(true), icon: <Sparkles size={16}/>, section: 'Actions' },
     { id: 'files', name: 'Toggle Files', onSelect: () => setIsFileExplorerOpen(v => !v), icon: <FolderOpen size={16}/>, section: 'Navigation', shortcut:['⌘', 'B'] },
-    { id: 'reset', name: 'Reset Code', onSelect: handleReset, icon: <RotateCcw size={16}/>, section: 'Actions' },
-    { id: 'clear', name: 'Clear Console', onSelect: handleClearLogs, icon: <Terminal size={16}/>, section: 'Actions' },
-    { id: 'settings', name: 'Connection Settings', onSelect: () => setIsSettingsOpen(true), icon: <Settings2 size={16}/>, section: 'General' },
-    { id: 'lang', name: 'Change Language', onSelect: handleBackToSelection, icon: <ArrowLeft size={16}/>, section: 'Navigation' },
+    { id: 'output', name: 'Toggle Output', onSelect: () => setIsOutputOpen(v => !v), icon: <PanelBottom size={16}/>, section: 'Navigation', shortcut:['⌘', 'J'] },
+    { id: 'reset', name: 'Reset Code', onSelect: () => { if(confirm('Reset?')) setCode(LANGUAGE_TEMPLATES[selectedLanguage!.id] || ''); }, icon: <RotateCcw size={16}/>, section: 'Actions' },
+    { id: 'clear', name: 'Clear Console', onSelect: handleClearLogs, icon: <Command size={16}/>, section: 'Actions' },
+    { id: 'settings', name: 'Settings', onSelect: () => setIsSettingsOpen(true), icon: <Settings2 size={16}/>, section: 'General' },
+    { id: 'lang', name: 'Switch Language', onSelect: () => { setSelectedLanguage(null); setIsRunning(false); }, icon: <ArrowLeft size={16}/>, section: 'Navigation' },
     { id: 'theme', name: 'Toggle Theme', onSelect: toggleTheme, icon: theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>, section: 'General' },
   ];
 
+  // --- No Language Selected View ---
   if (!selectedLanguage || !selectedInterpreter) {
     return (
       <>
-        <div className="fixed top-4 right-4 z-[110] flex gap-2">
-            <button onClick={toggleTheme} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors">{theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button>
-            <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-white/50 dark:bg-black/50 backdrop-blur rounded-full transition-colors"><Settings2 size={20} /></button>
-        </div>
         <LanguageSelector onSelect={handleLanguageSelect} />
+        <div className="fixed top-4 right-4 z-[110] flex gap-2">
+            <button onClick={toggleTheme} className="p-2 text-gray-400 hover:text-white bg-black/50 backdrop-blur rounded-full transition-colors">{theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button>
+            <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-400 hover:text-white bg-black/50 backdrop-blur rounded-full transition-colors"><Settings2 size={20} /></button>
+        </div>
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       </>
     );
   }
 
+  // --- Main App Render ---
   return (
-    <div className="fixed inset-0 w-full h-full flex flex-col text-gray-900 dark:text-white font-sans overflow-hidden bg-white dark:bg-[#0A0A0A] selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white">
-      {/* Global Drag Overlay to capture events over iframes */}
-      {isDragging && <div className="fixed inset-0 z-[9999] cursor-col-resize bg-transparent" />}
-
-      <AIAssistant isOpen={isAIModalOpen} onClose={() => setIsAIModalOpen(false)} onCodeGenerated={handleCodeGenerated} />
+    <div className="h-full w-full flex flex-col bg-[#09090b] text-slate-300 font-sans overflow-hidden relative">
+      <AIAssistant isOpen={isAIModalOpen} onClose={() => setIsAIModalOpen(false)} onCodeGenerated={setCode} />
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
-      <header className="shrink-0 h-14 md:h-12 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl flex items-center justify-between px-3 sm:px-4 z-50 transition-colors">
-        <div className="flex items-center gap-2">
-          <button onClick={handleBackToSelection} className="p-2 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white transition-colors" title="Change Language"><ArrowLeft size={18} /></button>
-          <div className="w-px h-5 bg-gray-200 dark:bg-white/10 mx-1"></div>
+      {/* --- Header --- */}
+      <header className="h-14 shrink-0 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-md flex items-center justify-between px-4 z-50">
+        <div className="flex items-center gap-4">
+          <button onClick={() => { setSelectedLanguage(null); setIsRunning(false); }} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 transition-colors">
+            <ArrowLeft size={18} />
+          </button>
+          
           <div className="flex flex-col">
-            <h1 className="text-sm font-bold tracking-tight text-gray-900 dark:text-white/90 leading-tight">{selectedLanguage.name}</h1>
-            <span className="text-[10px] text-gray-500 dark:text-white/40 font-mono hidden sm:inline-block leading-tight">{selectedInterpreter.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white tracking-tight">{selectedLanguage.name}</span>
+              <span className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400 border border-white/5">{selectedInterpreter.version}</span>
+            </div>
+            <span className={`text-[10px] flex items-center gap-1.5 ${connectionStatus.includes('Ready') ? 'text-emerald-400' : 'text-slate-500'}`}>
+               <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus.includes('Ready') ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+               {selectedInterpreter.type === 'browser' ? 'Browser Runtime' : connectionStatus}
+            </span>
           </div>
         </div>
 
-         <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full border transition-colors ${
-             selectedInterpreter.type === 'docker' 
-                ? (connectionStatus.includes('Ready') 
-                    ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20' 
-                    : (connectionStatus === 'Disconnected' ? 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10' : 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-100 dark:border-yellow-500/20')) 
-                : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
-         }`}>
-            {selectedInterpreter.type === 'docker' 
-                ? (connectionStatus.includes('Ready') ? <Container size={12} className="text-emerald-500" /> : <Server size={12} className={connectionStatus === 'Disconnected' ? "text-gray-400" : "text-yellow-500"} />) 
-                : <Monitor size={12} className="text-indigo-500" />
-            }
-            <span className={`text-[10px] font-mono ${
-                selectedInterpreter.type === 'docker' 
-                    ? (connectionStatus.includes('Ready') ? connectionStatus : 'text-gray-500 dark:text-gray-400') 
-                    : 'text-indigo-700 dark:text-indigo-300'
-            }`}>
-               {selectedInterpreter.type === 'docker' 
-                   ? (connectionStatus === 'Disconnected' ? 'Click editor to connect' : connectionStatus)
-                   : 'Browser Runtime'}
-            </span>
-         </div>
-
         <div className="flex items-center gap-2">
-          <button 
-             onClick={() => setIsLiveMode(!isLiveMode)}
-             className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md text-xs font-medium transition-all border ${
-                 isLiveMode 
-                     ? 'bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/30' 
-                     : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
-             }`}
-             title="Toggle Live Execution"
-          >
-             {isLiveMode ? <Radio size={14} className="animate-pulse" /> : <Zap size={14} />}
-             <span>Live</span>
-          </button>
+           {/* Desktop Controls */}
+           <div className="hidden md:flex items-center bg-white/5 rounded-lg p-0.5 border border-white/5 mr-2">
+              <button onClick={() => setIsLiveMode(!isLiveMode)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${isLiveMode ? 'bg-red-500/10 text-red-400' : 'text-slate-400 hover:text-white'}`}>
+                  {isLiveMode ? <Radio size={14} className="animate-pulse"/> : <Zap size={14}/>}
+                  <span>Live</span>
+              </button>
+           </div>
 
-          <button 
-            onClick={() => setIsFileExplorerOpen(!isFileExplorerOpen)} 
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-all ${
-              isFileExplorerOpen 
-                ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400' 
-                : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400'
-            }`}
-          >
-             <FolderOpen size={14} />
-             <span className="hidden lg:inline">Files</span>
-          </button>
+           <button onClick={() => setIsFileExplorerOpen(!isFileExplorerOpen)} className={`p-2 rounded-lg transition-colors ${isFileExplorerOpen ? 'bg-indigo-500/10 text-indigo-400' : 'text-slate-400 hover:bg-white/5'}`}>
+              <FolderOpen size={18} />
+           </button>
 
-          <button onClick={() => setIsCommandPaletteOpen(true)} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
-             <Menu size={16} className="md:w-3 md:h-3" />
-             <span className="hidden md:inline">Cmds</span>
-             <kbd className="hidden md:inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-white dark:bg-black/50 border border-gray-300 dark:border-white/20">⌘P</kbd>
-          </button>
-          
-          <button onClick={() => handleRun()} disabled={isRunning} className={`flex items-center gap-2 px-4 py-2 md:py-1.5 rounded-md font-semibold text-xs transition-all shadow-lg min-w-[80px] sm:min-w-[90px] justify-center ${isRunning ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'}`}>
-             {isRunning ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <Play size={14} fill="currentColor" className="md:w-3 md:h-3" />}
-             <span>Run</span>
-          </button>
+           <button onClick={() => setIsCommandPaletteOpen(true)} className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-slate-400 border border-white/5 transition-colors">
+              <Command size={14} />
+              <span>Cmd+P</span>
+           </button>
+
+           <button onClick={() => setIsAIModalOpen(true)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+              <Sparkles size={18} />
+           </button>
+
+           <div className="h-6 w-px bg-white/10 mx-1"></div>
+
+           <button 
+             onClick={() => handleRun()} 
+             disabled={isRunning}
+             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs shadow-lg shadow-indigo-500/20 transition-all ${isRunning ? 'bg-indigo-500/50 cursor-not-allowed text-white/50' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+           >
+             {isRunning ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Play size={14} fill="currentColor" />}
+             <span className="hidden sm:inline">Run</span>
+           </button>
+
+           <button onClick={() => setIsSettingsOpen(true)} className="md:hidden p-2 text-slate-400">
+             <MoreHorizontal size={20} />
+           </button>
         </div>
       </header>
 
-      <main className="flex-1 relative w-full min-h-0 overflow-hidden" ref={containerRef}>
-        {/* Mobile View Structure */}
-        <div className="md:hidden w-full h-full relative flex flex-col min-h-0">
-          <div className={`absolute inset-0 z-10 bg-white dark:bg-black transition-opacity duration-200 flex flex-col ${mobileActiveTab === 'editor' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-             <CodeEditor 
-                code={code} 
-                onChange={setCode} 
-                language={selectedLanguage} 
-                onFocus={handleEditorFocus}
-                onBlur={handleEditorBlur}
-            />
-          </div>
-          <div className={`absolute inset-0 z-10 transition-opacity duration-200 flex flex-col ${mobileActiveTab !== 'editor' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-             <OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-mobile" mobileView={mobileActiveTab === 'console' ? 'console' : 'preview'} hasVisualContentOverride={hasVisualContent} />
-          </div>
-          
-          {/* Mobile File Explorer Overlay */}
-          <div className={`absolute inset-0 z-30 flex transition-transform duration-300 ${isFileExplorerOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-              <div className="w-64 h-full bg-white dark:bg-[#0A0A0A] shadow-2xl relative z-40 border-r border-gray-200 dark:border-white/10">
-                 <FileExplorer 
-                    files={files} 
-                    onUpload={handleFileUpload} 
-                    onDelete={handleFileDelete}
-                    isOpen={true} // Always "internal" open when overlay is visible
-                    onToggle={() => setIsFileExplorerOpen(false)}
-                    isMobile={true}
-                 />
-              </div>
-              <div className="flex-1 bg-black/20 backdrop-blur-sm" onClick={() => setIsFileExplorerOpen(false)}></div>
-          </div>
-        </div>
-
-        {/* Desktop View Structure */}
-        <div className="hidden md:flex w-full h-full">
+      {/* --- Unified Workspace --- */}
+      <div className="flex-1 flex min-h-0 relative" ref={containerRef}>
+        
+        {/* Sidebar (Drawer on Mobile) */}
+        <div className={`
+           absolute md:static inset-y-0 left-0 z-30 bg-[#09090b] md:bg-transparent border-r border-white/5 transition-all duration-300 ease-in-out
+           ${isFileExplorerOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:opacity-0 md:overflow-hidden'}
+           ${isFileExplorerOpen ? 'md:w-64' : ''}
+        `}>
            <FileExplorer 
               files={files} 
               onUpload={handleFileUpload} 
-              onDelete={handleFileDelete}
+              onDelete={id => setFiles(prev => prev.filter(f => f.id !== id))}
               isOpen={isFileExplorerOpen}
               onToggle={() => setIsFileExplorerOpen(!isFileExplorerOpen)}
+              isMobile={window.innerWidth < 768}
            />
+        </div>
+        
+        {/* Backdrop for Mobile Sidebar */}
+        {isFileExplorerOpen && (
+           <div className="md:hidden absolute inset-0 bg-black/50 backdrop-blur-sm z-20" onClick={() => setIsFileExplorerOpen(false)} />
+        )}
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col md:flex-row min-w-0 relative">
            
-           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10 border-l border-gray-200 dark:border-white/5 bg-white dark:bg-[#0C0C0C]">
-                <CodeEditor 
-                    code={code} 
-                    onChange={setCode} 
-                    language={selectedLanguage} 
-                    onFocus={handleEditorFocus}
-                    onBlur={handleEditorBlur}
+           {/* Editor Area */}
+           <div className="flex-1 relative flex flex-col min-h-0 min-w-0 bg-[#0c0c0e]">
+              <CodeEditor 
+                 code={code} 
+                 onChange={setCode} 
+                 language={selectedLanguage} 
+              />
+              {/* Mobile "Open Output" Hint if collapsed */}
+              {!isOutputOpen && (
+                <button 
+                  onClick={() => setIsOutputOpen(true)}
+                  className="md:hidden absolute bottom-4 right-4 z-10 bg-indigo-600 text-white p-3 rounded-full shadow-lg shadow-indigo-500/30 animate-in zoom-in"
+                >
+                  <PanelBottom size={20} />
+                </button>
+              )}
+           </div>
+
+           {/* Resize Handle (Responsive) */}
+           {isOutputOpen && (
+             <div 
+               className={`
+                 z-20 flex items-center justify-center hover:bg-indigo-500 transition-colors group
+                 ${window.innerWidth < 768 
+                    ? 'h-1.5 w-full cursor-row-resize bg-[#121214] border-t border-b border-white/5' 
+                    : 'w-1.5 h-full cursor-col-resize bg-[#09090b] border-l border-r border-white/5'
+                 }
+               `}
+               onMouseDown={startResize}
+               onTouchStart={startResize}
+             >
+                <div className={`rounded-full bg-slate-600 group-hover:bg-white ${window.innerWidth < 768 ? 'w-8 h-1' : 'w-1 h-8'}`} />
+             </div>
+           )}
+
+           {/* Output Panel Area */}
+           {isOutputOpen && (
+             <div 
+               className="bg-[#121214] flex flex-col relative z-10 shadow-2xl md:shadow-none"
+               style={{ 
+                 [window.innerWidth < 768 ? 'height' : 'width']: `${outputSize}%`
+               }}
+             >
+                <div className="absolute top-0 right-0 p-2 z-20 flex gap-2">
+                   <button onClick={() => setOutputSize(window.innerWidth < 768 ? 80 : 60)} className="p-1.5 text-slate-500 hover:text-white rounded hover:bg-white/10" title="Expand">
+                      <Maximize2 size={14} />
+                   </button>
+                   <button onClick={() => setIsOutputOpen(false)} className="p-1.5 text-slate-500 hover:text-white rounded hover:bg-white/10" title="Close">
+                      <X size={14} />
+                   </button>
+                </div>
+                <OutputPanel 
+                   logs={logs} 
+                   onClearLogs={handleClearLogs} 
+                   visualRootId="visual-root"
+                   hasVisualContentOverride={hasVisualContent} 
                 />
-                {isLiveMode && (
-                    <div className="absolute top-2 right-4 pointer-events-none z-20 flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 border border-red-500/20 backdrop-blur">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                        </span>
-                        <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Live</span>
-                    </div>
-                )}
-           </div>
-           
-           <div 
-             className="w-1 bg-gray-100 dark:bg-black border-l border-r border-gray-200 dark:border-white/5 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 cursor-col-resize relative z-20 transition-colors group flex flex-col justify-center items-center" 
-             onMouseDown={startResize}
-           >
-              <div className="absolute inset-y-0 -left-2 -right-2 z-30" />
-              <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full group-hover:bg-indigo-500 dark:group-hover:bg-indigo-400 transition-colors" />
-           </div>
-
-           <div className="flex-1 min-w-0 bg-gray-50 dark:bg-[#030304] border-l border-gray-200 dark:border-white/5">
-              <OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-desktop" hasVisualContentOverride={hasVisualContent} />
-           </div>
+             </div>
+           )}
         </div>
-      </main>
-
-      <nav className="shrink-0 md:hidden h-[60px] bg-white/90 dark:bg-[#0A0A0A]/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center z-50 pb-[env(safe-area-inset-bottom)] px-2 gap-1 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
-         <button onClick={() => setMobileActiveTab('editor')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors active:scale-95 duration-150 ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-            <Code2 size={20} className="stroke-[1.5]" />
-            <span className="text-[10px] font-medium">Code</span>
-         </button>
-         <button onClick={() => setMobileActiveTab('preview')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors active:scale-95 duration-150 ${mobileActiveTab === 'preview' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-            <Monitor size={20} className="stroke-[1.5]" />
-            <span className="text-[10px] font-medium">Preview</span>
-         </button>
-         <button onClick={() => setMobileActiveTab('console')} className={`relative flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors active:scale-95 duration-150 ${mobileActiveTab === 'console' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-            <Terminal size={20} className="stroke-[1.5]" />
-            <span className="text-[10px] font-medium">Console</span>
-            {logs.length > 0 && <span className="absolute top-2 right-6 md:right-4 w-2 h-2 bg-indigo-500 rounded-full animate-pulse border border-white dark:border-black"></span>}
-         </button>
-         <button onClick={() => setIsAIModalOpen(true)} className="flex flex-col items-center justify-center gap-1 h-full rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors active:scale-95 duration-150">
-            <Sparkles size={20} className="stroke-[1.5]" />
-            <span className="text-[10px] font-medium">AI</span>
-         </button>
-      </nav>
-
-      <footer className="shrink-0 hidden md:flex h-7 bg-white dark:bg-[#050505] border-t border-gray-200 dark:border-white/10 px-3 items-center justify-between text-[10px] text-gray-500 select-none z-40 transition-colors">
-        <div className="flex items-center gap-3">
-           <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-yellow-500 animate-pulse' : 'bg-emerald-500'}`}></div><span className="text-gray-500 dark:text-gray-400">{isRunning ? 'Executing...' : 'Ready'}</span></div>
-           {isLiveMode && <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div><span className="text-red-500 font-medium">Live Mode Active</span></div>}
-           <div className="h-3 w-px bg-gray-200 dark:bg-white/10"></div>
-           <div className="flex items-center gap-1">
-             <span className="text-gray-400">Files:</span>
-             <span className="font-mono text-gray-600 dark:text-gray-300">{files.length}</span>
-           </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <button onClick={() => setIsCommandPaletteOpen(true)} className="text-gray-400 dark:text-gray-600 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">Press <kbd className="inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-gray-200 dark:bg-black/50 border border-gray-300 dark:border-white/20 mx-0.5">⌘P</kbd> for commands</button>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 };

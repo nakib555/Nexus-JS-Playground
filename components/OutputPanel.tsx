@@ -1,15 +1,16 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LogEntry, LogType } from '../types';
-import { Terminal, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Split, GripHorizontal, FunctionSquare, Table, Cpu } from 'lucide-react';
+import { Terminal, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, FunctionSquare, Table, Cpu, Globe } from 'lucide-react';
 
 interface OutputPanelProps {
   logs: LogEntry[];
   onClearLogs: () => void;
-  mobileView?: 'console' | 'preview';
   visualRootId?: string;
   hasVisualContentOverride?: boolean;
 }
 
+// ... Inspector Helper Functions (re-using largely same logic but updated styles) ...
 const getType = (value: any): string => {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
@@ -19,158 +20,60 @@ const getType = (value: any): string => {
   return type;
 };
 
-const MarkdownText: React.FC<{ text: string }> = ({ text }) => {
-  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
-  return (
-    <span className="break-all whitespace-pre-wrap">
-      {parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-bold text-gray-900 dark:text-gray-100">{part.slice(2, -2)}</strong>;
-        }
-        if (part.startsWith('`') && part.endsWith('`')) {
-          return <code key={i} className="bg-black/5 dark:bg-white/10 px-1 rounded text-[10px] font-mono text-indigo-600 dark:text-indigo-400">{part.slice(1, -1)}</code>;
-        }
-        return part;
-      })}
-    </span>
-  );
-};
-
-const TableInspector: React.FC<{ data: any[] }> = ({ data }) => {
-  if (!Array.isArray(data) || data.length === 0) return <span className="text-gray-400 italic">Empty Table</span>;
-  const headers = Array.from(new Set(data.filter(item => typeof item === 'object' && item !== null).flatMap(Object.keys)));
-  
-  if (headers.length === 0) {
-      return (
-        <div className="overflow-x-auto my-2 border border-gray-200 dark:border-white/10 rounded-lg max-h-60">
-           <table className="w-full text-left text-[10px] border-collapse">
-               <thead className="bg-gray-100 dark:bg-white/5 sticky top-0 z-10">
-                   <tr>
-                       <th className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold w-12 text-center">#</th>
-                       <th className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold">Value</th>
-                   </tr>
-               </thead>
-               <tbody>
-                   {data.map((row, i) => (
-                       <tr key={i} className="border-b border-gray-200 dark:border-white/5 last:border-0 hover:bg-black/5 dark:hover:bg-white/5">
-                           <td className="p-2 border-r border-gray-200 dark:border-white/10 text-gray-400 text-center">{i}</td>
-                           <td className="p-2 font-mono"><InspectorNode value={row} /></td>
-                       </tr>
-                   ))}
-               </tbody>
-           </table>
-        </div>
-      )
-  }
-
-  return (
-    <div className="overflow-x-auto my-2 border border-gray-200 dark:border-white/10 rounded-lg max-h-60 custom-scrollbar shadow-sm">
-      <table className="w-full text-left text-[10px] border-collapse bg-white dark:bg-black/20">
-        <thead className="bg-gray-100 dark:bg-white/5 sticky top-0 z-10">
-          <tr>
-            <th className="p-2 border-b border-r border-gray-200 dark:border-white/10 font-semibold w-12 text-center text-gray-500">#</th>
-            {headers.map(h => <th key={h} className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, i) => (
-            <tr key={i} className="border-b border-gray-200 dark:border-white/5 last:border-0 hover:bg-indigo-50 dark:hover:bg-white/5 transition-colors">
-              <td className="p-2 border-r border-gray-200 dark:border-white/10 text-gray-400 text-center font-mono">{i}</td>
-              {headers.map(h => (
-                <td key={h} className="p-2 font-mono whitespace-nowrap max-w-[200px] overflow-hidden text-ellipsis">
-                  <InspectorNode value={row?.[h]} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
 const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = ({ name, value, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(depth < 1);
   const type = getType(value);
 
-  if (depth > 8) return <span className="text-gray-500 dark:text-gray-600">...</span>;
+  if (depth > 8) return <span className="text-slate-600">...</span>;
 
   const renderValue = () => {
     switch (type) {
       case 'string':
-        if ((value.startsWith('{') || value.startsWith('[')) && value.length < 10000) {
+        // Handling Logic for Images/JSON inside strings...
+        if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)))) {
+            return <img src={value} alt="Output" className="max-w-[200px] max-h-[150px] rounded-md border border-white/10 my-1 bg-black/20" />;
+        }
+        if ((value.startsWith('{') || value.startsWith('[')) && value.length < 5000) {
             try {
                 const parsed = JSON.parse(value);
-                if (typeof parsed === 'object' && parsed !== null) {
-                    return <InspectorNode value={parsed} depth={depth} />;
-                }
-            } catch (e) { /* ignore */ }
+                if (typeof parsed === 'object') return <InspectorNode value={parsed} depth={depth} />;
+            } catch(e) {}
         }
-
-        if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)))) {
-            return (
-                <div className="mt-1 mb-2 inline-block group relative">
-                    <img src={value} alt="Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm bg-gray-50 dark:bg-black/50" />
-                </div>
-            );
-        }
-        
-        const trimmed = value.trim();
-        if ((trimmed.startsWith('<') && trimmed.endsWith('>')) || trimmed.startsWith('<!DOCTYPE')) {
-             return (
-                 <div className="mt-2 mb-2 p-2 bg-white dark:bg-black/20 rounded border border-gray-200 dark:border-white/10 overflow-auto max-w-full">
-                     <div dangerouslySetInnerHTML={{ __html: value }} />
-                 </div>
-             );
-        }
-        return <span className="text-orange-600 dark:text-orange-300 whitespace-pre-wrap break-all"><MarkdownText text={value} /></span>;
-      case 'number':
-        return <span className="text-blue-600 dark:text-cyan-300 font-bold">{value}</span>;
-      case 'boolean':
-        return <span className="text-purple-600 dark:text-purple-400 font-bold">{String(value)}</span>;
-      case 'null':
-      case 'undefined':
-        return <span className="text-gray-500 italic">{String(value)}</span>;
-      case 'error':
-        return <span className="text-red-500 dark:text-red-400 font-medium">{value}</span>;
-      case 'function':
-        return (
-          <div className="inline-flex items-center text-yellow-600 dark:text-yellow-200/80">
-            <FunctionSquare className="w-3 h-3 mr-1.5 opacity-60" />
-            <span className="italic">{value.name || 'anonymous'}()</span>
-          </div>
-        );
+        return <span className="text-orange-300 break-all whitespace-pre-wrap">{`"${value}"`}</span>;
+      case 'number': return <span className="text-cyan-300 font-bold">{value}</span>;
+      case 'boolean': return <span className="text-purple-400 font-bold">{String(value)}</span>;
+      case 'null': return <span className="text-slate-500 italic">null</span>;
+      case 'undefined': return <span className="text-slate-500 italic">undefined</span>;
+      case 'error': return <span className="text-red-400 font-medium">{value}</span>;
       case 'object':
       case 'array':
         const keys = Object.keys(value);
-        if (keys.length === 0) return <span className="text-gray-500">{type === 'array' ? '[]' : '{}'}</span>;
+        if (keys.length === 0) return <span className="text-slate-500">{type === 'array' ? '[]' : '{}'}</span>;
         return (
-          <div className="flex flex-col items-start align-top w-full">
+          <div className="inline-block align-top w-full">
             <div
-              className="flex items-center cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded px-1 -ml-1 select-none transition-colors"
+              className="flex items-center cursor-pointer hover:bg-white/5 rounded px-1 -ml-1 select-none transition-colors"
               onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
             >
-              <ChevronRight className={`w-3 h-3 mr-1 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${isExpanded ? 'rotate-90' : 'rotate-0'}`} />
-              <span className="text-gray-500 dark:text-gray-400 font-medium text-[11px] flex items-center gap-1.5">
-                {type === 'array' ? <List className="w-3 h-3 opacity-50" /> : <Braces className="w-3 h-3 opacity-50" />}
+              <ChevronRight className={`w-3 h-3 mr-1 text-slate-500 transition-transform ${isExpanded ? 'rotate-90' : 'rotate-0'}`} />
+              <span className="text-slate-400 font-medium text-[11px] flex items-center gap-1.5">
                 {type === 'array' ? `Array(${keys.length})` : 'Object'}
               </span>
             </div>
             {isExpanded && (
-              <div className="pl-4 border-l border-black/10 dark:border-white/10 ml-1.5 mt-1 flex flex-col gap-0.5 w-full">
+              <div className="pl-4 border-l border-white/5 ml-1.5 mt-1 flex flex-col gap-0.5 w-full">
                 {keys.map(key => <InspectorNode key={key} name={key} value={value[key]} depth={depth + 1} />)}
               </div>
             )}
           </div>
         );
-      default:
-        return <span className="text-gray-500">{String(value)}</span>;
+      default: return <span className="text-slate-400">{String(value)}</span>;
     }
   };
 
   return (
     <div className="flex items-start">
-      {name && <span className="text-indigo-600 dark:text-indigo-300 mr-2 shrink-0">{name}:</span>}
+      {name && <span className="text-indigo-300 mr-2 shrink-0">{name}:</span>}
       <div className="min-w-0 w-full">{renderValue()}</div>
     </div>
   );
@@ -179,173 +82,99 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
 export const OutputPanel: React.FC<OutputPanelProps> = ({
   logs,
   onClearLogs,
-  mobileView,
   visualRootId = 'visual-root',
   hasVisualContentOverride
 }) => {
   const scrollViewportRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const [layoutMode, setLayoutMode] = useState<'auto' | 'split' | 'visual' | 'console'>('auto');
-  const [effectiveLayout, setEffectiveLayout] = useState<'split' | 'visual' | 'console'>('visual');
-  const [visualHeight, setVisualHeight] = useState(60); 
-  const [isDraggingVertical, setIsDraggingVertical] = useState(false);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-
-  useEffect(() => {
-    if (mobileView) {
-      setEffectiveLayout(mobileView === 'preview' ? 'visual' : 'console');
-      return;
-    }
-    if (layoutMode !== 'auto') {
-      setEffectiveLayout(layoutMode);
-      return;
-    }
-    if (hasVisualContentOverride) {
-       setEffectiveLayout(logs.length > 0 ? 'split' : 'visual');
-    } else {
-       setEffectiveLayout('console'); 
-    }
-  }, [layoutMode, hasVisualContentOverride, logs.length, mobileView]);
-
-  const handleScroll = useCallback(() => {
-    if (scrollViewportRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = scrollViewportRef.current;
-        const atBottom = scrollHeight - scrollTop - clientHeight < 50;
-        setIsAtBottom(atBottom);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isAtBottom && ['console', 'split'].includes(effectiveLayout) && scrollViewportRef.current) {
-        requestAnimationFrame(() => {
-            if (scrollViewportRef.current) {
-                scrollViewportRef.current.scrollTo({
-                    top: scrollViewportRef.current.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }
-        });
-    }
-  }, [logs, effectiveLayout, isAtBottom]);
-
-  const startResizeVertical = useCallback(() => setIsDraggingVertical(true), []);
-  const stopResizeVertical = useCallback(() => setIsDraggingVertical(false), []);
+  const [activeTab, setActiveTab] = useState<'console' | 'visual'>('console');
   
-  const resizeVertical = useCallback((e: MouseEvent) => {
-    if (isDraggingVertical && containerRef.current) {
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const newHeight = ((e.clientY - containerRect.top) / containerRect.height) * 100;
-      if (newHeight > 15 && newHeight < 85) {
-        setVisualHeight(newHeight);
-      }
-    }
-  }, [isDraggingVertical]);
-
+  // Auto-switch tabs if visual content appears
   useEffect(() => {
-    if (isDraggingVertical) {
-        window.addEventListener('mousemove', resizeVertical);
-        window.addEventListener('mouseup', stopResizeVertical);
-    }
-    return () => {
-      window.removeEventListener('mousemove', resizeVertical);
-      window.removeEventListener('mouseup', stopResizeVertical);
-    };
-  }, [isDraggingVertical, resizeVertical, stopResizeVertical]);
+    if (hasVisualContentOverride) setActiveTab('visual');
+  }, [hasVisualContentOverride]);
 
-  const LayoutButton = ({ mode, icon: Icon, label }: { mode: 'auto' | 'split' | 'visual' | 'console', icon: any, label: string }) => (
-    <button 
-      onClick={() => setLayoutMode(mode)} 
-      className={`
-        flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all
-        ${layoutMode === mode 
-            ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm ring-1 ring-black/5 dark:ring-white/10' 
-            : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
-        }
-      `}
-      title={label}
-    >
-      <Icon className="w-3.5 h-3.5" />
-      <span className="hidden xl:inline">{label}</span>
-    </button>
-  );
+  // Auto-scroll logic
+  useEffect(() => {
+    if (activeTab === 'console' && scrollViewportRef.current) {
+        scrollViewportRef.current.scrollTo({ top: scrollViewportRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [logs, activeTab]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-[#030304] relative transition-colors overflow-hidden">
-      {/* Drag Overlay for Vertical Resize */}
-      {isDraggingVertical && <div className="fixed inset-0 z-[9999] cursor-row-resize bg-transparent" />}
-
-      {!mobileView && (
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 px-3 h-10 shrink-0 backdrop-blur-sm z-30">
-          <div className="flex items-center gap-1 p-0.5 bg-gray-200/50 dark:bg-white/5 rounded-lg border border-gray-200/50 dark:border-white/5">
-             <LayoutButton mode="auto" icon={Layout} label="Auto" />
-             <LayoutButton mode="visual" icon={Maximize2} label="Visual" />
-             <LayoutButton mode="split" icon={Split} label="Split" />
-             <LayoutButton mode="console" icon={Terminal} label="Console" />
-          </div>
-          <button onClick={onClearLogs} className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors" title="Clear Console">
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Clear</span>
-          </button>
-        </div>
-      )}
-
-      <div ref={containerRef} className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div style={{ flexBasis: effectiveLayout === 'split' ? `${visualHeight}%` : 'auto' }} className={`relative bg-transparent transition-all duration-300 ease-in-out flex flex-col origin-top ${effectiveLayout === 'console' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''} ${effectiveLayout === 'visual' ? 'flex-1' : ''}`}>
-          <div className="w-full h-full relative">
-             <div id={visualRootId} className="w-full h-full visual-grid-bg"></div>
-             <div className="absolute top-2 right-2 pointer-events-none opacity-50 z-10"><span className="text-[9px] font-mono text-gray-400 bg-white/50 dark:bg-black/50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 backdrop-blur">Preview</span></div>
-          </div>
-        </div>
-
-        <div 
-          onMouseDown={startResizeVertical} 
-          className={`
-            h-2 w-full shrink-0 z-20 transition-all duration-200 group flex items-center justify-center relative -my-1 cursor-row-resize
-            ${effectiveLayout === 'split' ? 'opacity-100' : 'opacity-0 h-0 pointer-events-none'}
-          `}
-        >
-          <div className="absolute inset-x-0 h-px bg-gray-200 dark:bg-white/10 group-hover:bg-indigo-500/50 dark:group-hover:bg-indigo-500/50 transition-colors" />
-          <div className="w-8 h-4 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
-              <GripHorizontal className="w-3 h-3 text-gray-400 dark:text-gray-500" />
-          </div>
-        </div>
-
-        <div style={{ flexBasis: effectiveLayout === 'split' ? `${100 - visualHeight}%` : 'auto' }} className={`relative bg-gray-50 dark:bg-gray-950 flex flex-col transition-all duration-300 ease-in-out origin-bottom ${effectiveLayout === 'visual' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''} ${effectiveLayout === 'console' ? 'flex-1' : ''}`}>
-           <div className="absolute top-2 right-2 pointer-events-none opacity-50 z-10"><span className="text-[9px] font-mono text-gray-400 bg-white/50 dark:bg-black/50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 backdrop-blur">Console</span></div>
-           <div 
-             ref={scrollViewportRef}
-             onScroll={handleScroll}
-             className="flex-1 overflow-y-auto overflow-x-auto font-mono text-xs custom-scrollbar scroll-smooth"
+    <div className="flex flex-col h-full w-full bg-[#121214]">
+      {/* Panel Header */}
+      <div className="h-10 shrink-0 border-b border-white/5 flex items-center justify-between px-3 bg-[#121214]">
+        <div className="flex items-center gap-1">
+           <button 
+             onClick={() => setActiveTab('console')}
+             className={`px-3 py-1.5 rounded-md text-[10px] font-medium transition-colors flex items-center gap-2 ${activeTab === 'console' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
            >
-            {logs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-800 space-y-3 opacity-60"><Terminal className="w-6 h-6" /><p className="text-[10px] font-medium uppercase tracking-widest">No Logs</p></div>
-            ) : (
-              <div className="flex flex-col min-h-full py-2">
-                {logs.map((log) => (
-                  <div key={log.id} className={`flex gap-3 px-4 py-1.5 border-l-2 border-transparent hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group items-start ${log.type === LogType.ERROR ? 'border-l-red-500 bg-red-50 dark:bg-red-500/5' : ''} ${log.type === LogType.WARN ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-500/5' : ''} ${log.type === LogType.SUCCESS ? 'border-l-green-500 bg-green-50 dark:bg-green-500/5' : ''} ${log.type === LogType.INFO ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-500/5' : ''} ${log.type === LogType.TABLE ? 'border-l-indigo-500 bg-indigo-50 dark:bg-indigo-500/5' : ''} ${log.type === LogType.SYSTEM ? 'border-l-fuchsia-500 bg-fuchsia-50 dark:bg-fuchsia-500/5' : ''}`}>
-                    <span className="shrink-0 mt-0.5 opacity-60">
-                      {log.type === LogType.ERROR && <AlertCircle className="w-3 h-3 text-red-500 dark:text-red-400" />}
-                      {log.type === LogType.WARN && <AlertTriangle className="w-3 h-3 text-yellow-500 dark:text-yellow-400" />}
-                      {log.type === LogType.SUCCESS && <CheckCircle2 className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />}
-                      {log.type === LogType.INFO && <Info className="w-3 h-3 text-blue-500 dark:text-blue-400" />}
-                      {log.type === LogType.TABLE && <Table className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />}
-                      {log.type === LogType.SYSTEM && <Cpu className="w-3 h-3 text-fuchsia-500 dark:text-fuchsia-400" />}
-                    </span>
-                    <div className="flex-1 min-w-0 font-mono text-[11px] leading-relaxed text-gray-700 dark:text-gray-300 break-words flex flex-col gap-1.5">
-                       {log.type === LogType.TABLE ? (
-                          <TableInspector data={log.messages[0]} />
-                       ) : (
-                          log.messages.map((msg, i) => <InspectorNode key={i} value={msg} />)
-                       )}
-                    </div>
-                    <span className="text-[9px] text-gray-400 dark:text-gray-700 shrink-0 font-sans select-none opacity-0 group-hover:opacity-100 transition-opacity pt-1">{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}</span>
-                  </div>
-                ))}
-                <div className="h-4" />
+             <Terminal size={12} />
+             <span>Console</span>
+             {logs.length > 0 && <span className="bg-white/10 px-1.5 rounded-full text-[9px]">{logs.length}</span>}
+           </button>
+           <button 
+             onClick={() => setActiveTab('visual')}
+             className={`px-3 py-1.5 rounded-md text-[10px] font-medium transition-colors flex items-center gap-2 ${activeTab === 'visual' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+           >
+             <Globe size={12} />
+             <span>Visual</span>
+             {hasVisualContentOverride && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+           </button>
+        </div>
+        
+        <div className="flex items-center gap-2">
+           <button onClick={onClearLogs} className="p-1.5 text-slate-500 hover:text-red-400 rounded-md hover:bg-white/5 transition-colors" title="Clear">
+              <Trash2 size={14} />
+           </button>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 relative min-h-0 overflow-hidden">
+        
+        {/* Visual Tab */}
+        <div className={`absolute inset-0 bg-white/5 ${activeTab === 'visual' ? 'z-10' : 'z-0 opacity-0 pointer-events-none'}`}>
+           <div id={visualRootId} className="w-full h-full"></div>
+           {!hasVisualContentOverride && (
+              <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-xs">
+                 <span>No visual output generated</span>
               </div>
+           )}
+        </div>
+
+        {/* Console Tab */}
+        <div 
+           ref={scrollViewportRef}
+           className={`absolute inset-0 overflow-auto custom-scrollbar p-3 space-y-2 font-mono text-xs ${activeTab === 'console' ? 'z-10' : 'z-0 opacity-0 pointer-events-none'}`}
+        >
+            {logs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-700">
+                    <Terminal size={24} className="mb-2 opacity-50" />
+                    <p>Console Empty</p>
+                </div>
+            ) : (
+                logs.map(log => (
+                    <div key={log.id} className={`flex gap-3 p-2 rounded border-l-2 ${
+                        log.type === LogType.ERROR ? 'border-red-500 bg-red-500/5' : 
+                        log.type === LogType.WARN ? 'border-yellow-500 bg-yellow-500/5' : 
+                        log.type === LogType.SYSTEM ? 'border-fuchsia-500 bg-fuchsia-500/5' :
+                        'border-slate-600 hover:bg-white/5'
+                    }`}>
+                        <span className="shrink-0 mt-0.5 opacity-70">
+                            {log.type === LogType.ERROR && <AlertCircle size={12} className="text-red-500" />}
+                            {log.type === LogType.WARN && <AlertTriangle size={12} className="text-yellow-500" />}
+                            {log.type === LogType.INFO && <Info size={12} className="text-blue-500" />}
+                            {log.type === LogType.SYSTEM && <Cpu size={12} className="text-fuchsia-500" />}
+                            {log.type === LogType.SUCCESS && <CheckCircle2 size={12} className="text-emerald-500" />}
+                        </span>
+                        <div className="flex-1 overflow-x-auto">
+                            {log.messages.map((msg, i) => <InspectorNode key={i} value={msg} />)}
+                        </div>
+                        <span className="text-[10px] text-slate-600 shrink-0">{new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}</span>
+                    </div>
+                ))
             )}
-          </div>
         </div>
       </div>
     </div>
