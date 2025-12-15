@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Command, Sun, Moon, ArrowLeft, Square, Menu, Container, Server, Cpu, Wifi, Zap, Radio, FolderOpen } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, Code2, Monitor, Terminal, Settings2, Sun, Moon, ArrowLeft, Menu, Container, Server, Zap, Radio, FolderOpen, X } from 'lucide-react';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { AIAssistant } from './components/AIAssistant';
@@ -34,7 +34,7 @@ const App: React.FC = () => {
   });
   
   const [editorWidth, setEditorWidth] = useState(55);
-  const [isFileExplorerOpen, setIsFileExplorerOpen] = useState(true);
+  const [isFileExplorerOpen, setIsFileExplorerOpen] = useState(false); // Default closed for cleaner start
   const [mobileActiveTab, setMobileActiveTab] = useState<MobileTab>('editor');
   
   const [isRunning, setIsRunning] = useState(false);
@@ -51,6 +51,13 @@ const App: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const executorCleanupRef = useRef<(() => void) | null>(null);
   const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Initialize responsive state
+  useEffect(() => {
+    if (window.innerWidth >= 768) {
+      setIsFileExplorerOpen(true);
+    }
+  }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -86,9 +93,6 @@ const App: React.FC = () => {
     setHasVisualContent(false);
     setIsLiveMode(false);
     setFiles([]); // Clear files on language switch
-    
-    // NOTE: We do NOT connect here anymore. 
-    // Connection happens on editor focus (hot runtime).
   };
 
   const handleBackToSelection = () => {
@@ -107,7 +111,6 @@ const App: React.FC = () => {
     setMobileActiveTab('editor');
     setIsRunning(false);
     setHasVisualContent(false);
-    setIsLiveMode(false);
     if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -118,15 +121,12 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Auto-Scaling Logic (Focus/Blur) ---
   const handleEditorFocus = useCallback(() => {
-    // Clear any pending destruction timer
     if (sessionTimeoutRef.current) {
         clearTimeout(sessionTimeoutRef.current);
         sessionTimeoutRef.current = null;
     }
 
-    // Connect if we are in a docker env and not connected
     if (
         selectedLanguage && 
         selectedInterpreter?.type === 'docker' && 
@@ -137,16 +137,13 @@ const App: React.FC = () => {
   }, [selectedLanguage, selectedInterpreter, connectionStatus, establishConnection]);
 
   const handleEditorBlur = useCallback(() => {
-     // If we are currently running code, do not destroy the container
      if (isRunning) return;
 
      if (selectedInterpreter?.type === 'docker') {
-         // Set a short timer to destroy the container.
-         // This debounce allows for clicking "Run" (which blurs editor) without killing the session immediately.
          sessionTimeoutRef.current = setTimeout(() => {
              dockerClient.disconnect();
              setConnectionStatus('Disconnected');
-         }, 3000); // 3 seconds inactivity closes the "hot" session
+         }, 3000); 
      }
   }, [selectedInterpreter, isRunning]);
 
@@ -162,23 +159,30 @@ const App: React.FC = () => {
   }, [isDragging]);
 
   useEffect(() => {
-    window.addEventListener('mousemove', resize);
-    window.addEventListener('mouseup', stopResize);
+    if (isDragging) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResize);
+    }
     return () => {
       window.removeEventListener('mousemove', resize);
       window.removeEventListener('mouseup', stopResize);
-      if (executorCleanupRef.current) {
-          executorCleanupRef.current();
-      }
-      if (sessionTimeoutRef.current) {
-          clearTimeout(sessionTimeoutRef.current);
-      }
     };
-  }, [resize, stopResize]);
+  }, [isDragging, resize, stopResize]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+        if (executorCleanupRef.current) executorCleanupRef.current();
+        if (sessionTimeoutRef.current) clearTimeout(sessionTimeoutRef.current);
+    };
+  }, []);
 
   const handleClearLogs = useCallback(() => setLogs([]), []);
 
   const getVisualRoot = useCallback(() => {
+    // Only one visual root ID is needed if we manage layout correctly,
+    // but keeping separate IDs for safety if DOM nodes are moving.
+    // However, in this layout, components are conditionally rendered or hidden.
     const isMobile = window.innerWidth < 768;
     return document.getElementById(isMobile ? 'visual-root-mobile' : 'visual-root-desktop');
   }, []);
@@ -186,13 +190,14 @@ const App: React.FC = () => {
   const handleRun = useCallback(async (isAutoRun = false) => {
     if (!selectedLanguage || !selectedInterpreter) return;
 
-    // Critical: Cancel any pending session destruction because we are about to run
     if (sessionTimeoutRef.current) {
         clearTimeout(sessionTimeoutRef.current);
         sessionTimeoutRef.current = null;
     }
 
     if (window.innerWidth < 768 && !isAutoRun) {
+       // On mobile, switch to console/preview on run
+       // If previous run had visual, maybe prefer preview, else console
        setMobileActiveTab('console');
     }
 
@@ -210,14 +215,11 @@ const App: React.FC = () => {
     handleClearLogs();
     setHasVisualContent(false);
 
-    // Browser Execution (HTML/JS)
     if (selectedInterpreter.type === 'browser') {
         const rootEl = getVisualRoot();
         if (rootEl) {
             setHasVisualContent(true);
             if (window.innerWidth < 768 && !isAutoRun) setMobileActiveTab('preview');
-            // Execute and store the cleanup function
-            // Pass files to browser executor
             executorCleanupRef.current = executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => {
                 setHasVisualContent(hasContent);
                 if (hasContent && window.innerWidth < 768 && (!isAutoRun || mobileActiveTab === 'preview')) {
@@ -229,22 +231,15 @@ const App: React.FC = () => {
         return;
     }
 
-    // Docker Execution (Strict Backend Check)
     if (selectedInterpreter.type === 'docker') {
-        // If not connected (e.g. timeout fired before run), try to reconnect fast
-        // Note: This relies on the backend being fast enough or the socket logic queuing the emission
         if (connectionStatus === 'Disconnected') {
              addLog(LogType.SYSTEM, ['[System] Re-establishing execution environment...']);
              establishConnection(selectedLanguage, selectedInterpreter);
-             // We can't immediately run because socket needs time. 
-             // Ideally we queue this, but for now we rely on the user to click run again or the socket ready state.
-             // However, since `runCode` checks for socket.connected, we might miss this click.
-             // In a perfect world, we await connection.
         }
 
-        const isBackendConnected = connectionStatus.includes('Ready') || connectionStatus.includes('Booting'); // Allow booting state
+        const isBackendConnected = connectionStatus.includes('Ready') || connectionStatus.includes('Booting') || connectionStatus === 'Connecting...';
 
-        if (true) { // Proceeding to try execution
+        if (isBackendConnected || true) { 
             const libs = detectLibraries(code, selectedLanguage.id);
             let finalCode = code;
             let command = selectedInterpreter.entryCommand || '';
@@ -255,21 +250,17 @@ const App: React.FC = () => {
 
             if (libs.length > 0 && selectedInterpreter.installCommand) {
                 if (!isAutoRun) addLog(LogType.SYSTEM, [`[System] Detected libraries: ${libs.join(', ')}`]);
-                
                 let installCmd = selectedInterpreter.installCommand;
                 if (installCmd.includes('{libs}')) {
                     installCmd = installCmd.replace('{libs}', libs.join(' '));
                 } else {
                     installCmd = `${installCmd} ${libs.join(' ')}`;
                 }
-                
                 command = `${installCmd} && ${command}`;
             }
 
-            // Pass files to docker client
             dockerClient.runCode(finalCode, selectedInterpreter.extension || 'txt', command, files);
         } else {
-            // Error State - No AI Fallback
             addLog(LogType.ERROR, [`Execution Failed: Backend not connected.`]);
             addLog(LogType.SYSTEM, [`Please check your connection settings or ensure the backend server is running.`]);
             setIsRunning(false);
@@ -310,7 +301,6 @@ const App: React.FC = () => {
   
   const handleFileUpload = useCallback(async (fileList: FileList) => {
     const newFiles: VirtualFile[] = [];
-    
     for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
         try {
@@ -321,7 +311,6 @@ const App: React.FC = () => {
                 binaryString += String.fromCharCode(binary[j]);
             }
             const base64 = btoa(binaryString);
-            
             newFiles.push({
                 id: Math.random().toString(36).substr(2, 9),
                 name: file.name,
@@ -335,7 +324,6 @@ const App: React.FC = () => {
             addLog(LogType.ERROR, [`Failed to upload ${file.name}`]);
         }
     }
-    
     setFiles(prev => [...prev, ...newFiles]);
     addLog(LogType.SYSTEM, [`Uploaded ${newFiles.length} file(s).`]);
   }, [addLog]);
@@ -390,6 +378,9 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col text-gray-900 dark:text-white font-sans overflow-hidden bg-white dark:bg-[#0A0A0A] selection:bg-indigo-500/30 selection:text-indigo-900 dark:selection:text-white">
+      {/* Global Drag Overlay to capture events over iframes */}
+      {isDragging && <div className="fixed inset-0 z-[9999] cursor-col-resize bg-transparent" />}
+
       <AIAssistant isOpen={isAIModalOpen} onClose={() => setIsAIModalOpen(false)} onCodeGenerated={handleCodeGenerated} />
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
@@ -429,7 +420,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-2">
           <button 
              onClick={() => setIsLiveMode(!isLiveMode)}
-             className={`flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md text-xs font-medium transition-all border ${
+             className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md text-xs font-medium transition-all border ${
                  isLiveMode 
                      ? 'bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/30' 
                      : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
@@ -437,17 +428,24 @@ const App: React.FC = () => {
              title="Toggle Live Execution"
           >
              {isLiveMode ? <Radio size={14} className="animate-pulse" /> : <Zap size={14} />}
-             <span className="hidden md:inline">{isLiveMode ? 'Live' : 'Live'}</span>
+             <span>Live</span>
           </button>
 
-          <button onClick={() => setIsFileExplorerOpen(!isFileExplorerOpen)} className={`hidden md:flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-all ${isFileExplorerOpen ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400'}`}>
+          <button 
+            onClick={() => setIsFileExplorerOpen(!isFileExplorerOpen)} 
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition-all ${
+              isFileExplorerOpen 
+                ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400' 
+                : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400'
+            }`}
+          >
              <FolderOpen size={14} />
              <span className="hidden lg:inline">Files</span>
           </button>
 
-          <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
+          <button onClick={() => setIsCommandPaletteOpen(true)} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
              <Menu size={16} className="md:w-3 md:h-3" />
-             <span className="hidden md:inline">Commands</span>
+             <span className="hidden md:inline">Cmds</span>
              <kbd className="hidden md:inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-white dark:bg-black/50 border border-gray-300 dark:border-white/20">⌘P</kbd>
           </button>
           
@@ -459,6 +457,7 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-1 relative w-full min-h-0 overflow-hidden" ref={containerRef}>
+        {/* Mobile View Structure */}
         <div className="md:hidden w-full h-full relative flex flex-col min-h-0">
           <div className={`absolute inset-0 z-10 bg-white dark:bg-black transition-opacity duration-200 flex flex-col ${mobileActiveTab === 'editor' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
              <CodeEditor 
@@ -472,7 +471,27 @@ const App: React.FC = () => {
           <div className={`absolute inset-0 z-10 transition-opacity duration-200 flex flex-col ${mobileActiveTab !== 'editor' ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
              <OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-mobile" mobileView={mobileActiveTab === 'console' ? 'console' : 'preview'} hasVisualContentOverride={hasVisualContent} />
           </div>
+          
+          {/* Mobile File Explorer Overlay */}
+          <div className={`absolute inset-0 z-30 flex transition-transform duration-300 ${isFileExplorerOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+              <div className="w-64 h-full bg-white dark:bg-[#0A0A0A] shadow-2xl relative z-40 border-r border-gray-200 dark:border-white/10">
+                 <div className="absolute top-2 right-2 md:hidden">
+                    <button onClick={() => setIsFileExplorerOpen(false)} className="p-1 text-gray-400 hover:text-gray-900 dark:hover:text-white"><X size={16} /></button>
+                 </div>
+                 <FileExplorer 
+                    files={files} 
+                    onUpload={handleFileUpload} 
+                    onDelete={handleFileDelete}
+                    isOpen={true} // Always "internal" open when overlay is visible
+                    onToggle={() => setIsFileExplorerOpen(false)}
+                    isMobile={true}
+                 />
+              </div>
+              <div className="flex-1 bg-black/20 backdrop-blur-sm" onClick={() => setIsFileExplorerOpen(false)}></div>
+          </div>
         </div>
+
+        {/* Desktop View Structure */}
         <div className="hidden md:flex w-full h-full">
            <FileExplorer 
               files={files} 
@@ -482,7 +501,7 @@ const App: React.FC = () => {
               onToggle={() => setIsFileExplorerOpen(!isFileExplorerOpen)}
            />
            
-           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10 border-l border-gray-200 dark:border-white/5">
+           <div style={{ width: `${editorWidth}%` }} className="h-full flex flex-col relative group z-10 border-l border-gray-200 dark:border-white/5 bg-white dark:bg-[#0C0C0C]">
                 <CodeEditor 
                     code={code} 
                     onChange={setCode} 
@@ -509,7 +528,9 @@ const App: React.FC = () => {
               <div className="h-8 w-1 bg-gray-300 dark:bg-white/20 rounded-full group-hover:bg-indigo-500 dark:group-hover:bg-indigo-400 transition-colors" />
            </div>
 
-           <div className="flex-1 min-w-0 bg-gray-50 dark:bg-[#030304]"><OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-desktop" hasVisualContentOverride={hasVisualContent} /></div>
+           <div className="flex-1 min-w-0 bg-gray-50 dark:bg-[#030304] border-l border-gray-200 dark:border-white/5">
+              <OutputPanel logs={logs} onClearLogs={handleClearLogs} visualRootId="visual-root-desktop" hasVisualContentOverride={hasVisualContent} />
+           </div>
         </div>
       </main>
 

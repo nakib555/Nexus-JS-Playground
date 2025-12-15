@@ -1,17 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LogEntry, LogType } from '../types';
-import { Terminal, Box, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Minimize2, Split, GripVertical, FunctionSquare, Table, GripHorizontal, Cpu } from 'lucide-react';
+import { Terminal, AlertCircle, Info, CheckCircle2, AlertTriangle, Trash2, ChevronRight, Braces, List, Layout, Maximize2, Split, GripHorizontal, FunctionSquare, Table, Cpu } from 'lucide-react';
 
 interface OutputPanelProps {
   logs: LogEntry[];
   onClearLogs: () => void;
-  // If provided, forces a specific view (used for mobile)
   mobileView?: 'console' | 'preview';
   visualRootId?: string;
   hasVisualContentOverride?: boolean;
 }
 
-// -- Object Inspector Components --
 const getType = (value: any): string => {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
@@ -21,11 +19,8 @@ const getType = (value: any): string => {
   return type;
 };
 
-// Simple Markdown Renderer for Logs
 const MarkdownText: React.FC<{ text: string }> = ({ text }) => {
-  // Split by bold (**text**) or code (`text`)
   const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
-  
   return (
     <span className="break-all whitespace-pre-wrap">
       {parts.map((part, i) => {
@@ -43,18 +38,15 @@ const MarkdownText: React.FC<{ text: string }> = ({ text }) => {
 
 const TableInspector: React.FC<{ data: any[] }> = ({ data }) => {
   if (!Array.isArray(data) || data.length === 0) return <span className="text-gray-400 italic">Empty Table</span>;
-  
-  // Collect all unique keys from all objects
   const headers = Array.from(new Set(data.filter(item => typeof item === 'object' && item !== null).flatMap(Object.keys)));
   
-  // If not objects, just list them
   if (headers.length === 0) {
       return (
         <div className="overflow-x-auto my-2 border border-gray-200 dark:border-white/10 rounded-lg max-h-60">
            <table className="w-full text-left text-[10px] border-collapse">
                <thead className="bg-gray-100 dark:bg-white/5 sticky top-0 z-10">
                    <tr>
-                       <th className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold w-12 text-center">Index</th>
+                       <th className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold w-12 text-center">#</th>
                        <th className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold">Value</th>
                    </tr>
                </thead>
@@ -76,7 +68,7 @@ const TableInspector: React.FC<{ data: any[] }> = ({ data }) => {
       <table className="w-full text-left text-[10px] border-collapse bg-white dark:bg-black/20">
         <thead className="bg-gray-100 dark:bg-white/5 sticky top-0 z-10">
           <tr>
-            <th className="p-2 border-b border-r border-gray-200 dark:border-white/10 font-semibold w-12 text-center text-gray-500">(index)</th>
+            <th className="p-2 border-b border-r border-gray-200 dark:border-white/10 font-semibold w-12 text-center text-gray-500">#</th>
             {headers.map(h => <th key={h} className="p-2 border-b border-gray-200 dark:border-white/10 font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">{h}</th>)}
           </tr>
         </thead>
@@ -106,36 +98,25 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
   const renderValue = () => {
     switch (type) {
       case 'string':
-        // Try to parse JSON strings to show them interactively
         if ((value.startsWith('{') || value.startsWith('[')) && value.length < 10000) {
             try {
                 const parsed = JSON.parse(value);
-                // Only render as object if it's actually structured data
                 if (typeof parsed === 'object' && parsed !== null) {
                     return <InspectorNode value={parsed} depth={depth} />;
                 }
-            } catch (e) {
-                // Ignore, render as string
-            }
+            } catch (e) { /* ignore */ }
         }
 
-        // Detect Images (Base64 or URL or Blob)
-        if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i) || value.includes('placeholder')))) {
+        if (value.startsWith('data:image/') || value.startsWith('blob:') || (value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)))) {
             return (
                 <div className="mt-1 mb-2 inline-block group relative">
-                    <img src={value} alt="Console Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm bg-gray-50 dark:bg-black/50" />
+                    <img src={value} alt="Output" className="max-w-[300px] max-h-[200px] h-auto rounded-lg border border-gray-200 dark:border-white/10 shadow-sm bg-gray-50 dark:bg-black/50" />
                 </div>
             );
         }
         
-        // Detect HTML-like strings (Improved detection)
         const trimmed = value.trim();
-        if (
-            (trimmed.startsWith('<') && trimmed.endsWith('>')) || 
-            (trimmed.startsWith('<!DOCTYPE')) || 
-            (trimmed.startsWith('<svg')) ||
-            (trimmed.includes('</') && trimmed.includes('>')) 
-        ) {
+        if ((trimmed.startsWith('<') && trimmed.endsWith('>')) || trimmed.startsWith('<!DOCTYPE')) {
              return (
                  <div className="mt-2 mb-2 p-2 bg-white dark:bg-black/20 rounded border border-gray-200 dark:border-white/10 overflow-auto max-w-full">
                      <div dangerouslySetInnerHTML={{ __html: value }} />
@@ -162,9 +143,7 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
       case 'object':
       case 'array':
         const keys = Object.keys(value);
-        if (keys.length === 0) {
-          return <span className="text-gray-500">{type === 'array' ? '[]' : '{}'}</span>;
-        }
+        if (keys.length === 0) return <span className="text-gray-500">{type === 'array' ? '[]' : '{}'}</span>;
         return (
           <div className="flex flex-col items-start align-top w-full">
             <div
@@ -179,9 +158,7 @@ const InspectorNode: React.FC<{ name?: string, value: any, depth?: number }> = (
             </div>
             {isExpanded && (
               <div className="pl-4 border-l border-black/10 dark:border-white/10 ml-1.5 mt-1 flex flex-col gap-0.5 w-full">
-                {keys.map(key => (
-                  <InspectorNode key={key} name={key} value={value[key]} depth={depth + 1} />
-                ))}
+                {keys.map(key => <InspectorNode key={key} name={key} value={value[key]} depth={depth + 1} />)}
               </div>
             )}
           </div>
@@ -211,8 +188,7 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
 
   const [layoutMode, setLayoutMode] = useState<'auto' | 'split' | 'visual' | 'console'>('auto');
   const [effectiveLayout, setEffectiveLayout] = useState<'split' | 'visual' | 'console'>('visual');
-  
-  const [visualHeight, setVisualHeight] = useState(60); // percentage
+  const [visualHeight, setVisualHeight] = useState(60); 
   const [isDraggingVertical, setIsDraggingVertical] = useState(false);
 
   useEffect(() => {
@@ -224,15 +200,9 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
       setEffectiveLayout(layoutMode);
       return;
     }
-    // Auto Mode Logic:
     if (hasVisualContentOverride) {
-       if (logs.length > 0) {
-         setEffectiveLayout('split');
-       } else {
-         setEffectiveLayout('visual');
-       }
+       setEffectiveLayout(logs.length > 0 ? 'split' : 'visual');
     } else {
-       // Even if logs are empty, defaulting to console feels more standard for a code runner until visual appears
        setEffectiveLayout('console'); 
     }
   }, [layoutMode, hasVisualContentOverride, logs.length, mobileView]);
@@ -257,13 +227,15 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
   }, [isDraggingVertical]);
 
   useEffect(() => {
-    window.addEventListener('mousemove', resizeVertical);
-    window.addEventListener('mouseup', stopResizeVertical);
+    if (isDraggingVertical) {
+        window.addEventListener('mousemove', resizeVertical);
+        window.addEventListener('mouseup', stopResizeVertical);
+    }
     return () => {
       window.removeEventListener('mousemove', resizeVertical);
       window.removeEventListener('mouseup', stopResizeVertical);
     };
-  }, [resizeVertical, stopResizeVertical]);
+  }, [isDraggingVertical, resizeVertical, stopResizeVertical]);
 
   const LayoutButton = ({ mode, icon: Icon, label }: { mode: 'auto' | 'split' | 'visual' | 'console', icon: any, label: string }) => (
     <button 
@@ -284,34 +256,32 @@ export const OutputPanel: React.FC<OutputPanelProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-[#030304] relative transition-colors overflow-hidden">
+      {/* Drag Overlay for Vertical Resize */}
+      {isDraggingVertical && <div className="fixed inset-0 z-[9999] cursor-row-resize bg-transparent" />}
+
       {!mobileView && (
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 px-3 h-10 shrink-0 backdrop-blur-sm z-30">
-          
           <div className="flex items-center gap-1 p-0.5 bg-gray-200/50 dark:bg-white/5 rounded-lg border border-gray-200/50 dark:border-white/5">
              <LayoutButton mode="auto" icon={Layout} label="Auto" />
              <LayoutButton mode="visual" icon={Maximize2} label="Visual" />
              <LayoutButton mode="split" icon={Split} label="Split" />
              <LayoutButton mode="console" icon={Terminal} label="Console" />
           </div>
-
-          <div className="flex items-center gap-1">
-             <button onClick={onClearLogs} className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors" title="Clear Console">
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Clear</span>
-             </button>
-          </div>
+          <button onClick={onClearLogs} className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors" title="Clear Console">
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear</span>
+          </button>
         </div>
       )}
 
       <div ref={containerRef} className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div style={{ flexBasis: effectiveLayout === 'split' ? `${visualHeight}%` : 'auto' }} className={`relative bg-transparent transition-all duration-300 ease-in-out flex flex-col origin-top ${effectiveLayout === 'console' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''} ${effectiveLayout === 'split' ? '' : ''} ${effectiveLayout === 'visual' ? 'flex-1' : ''}`}>
+        <div style={{ flexBasis: effectiveLayout === 'split' ? `${visualHeight}%` : 'auto' }} className={`relative bg-transparent transition-all duration-300 ease-in-out flex flex-col origin-top ${effectiveLayout === 'console' ? 'flex-[0] h-0 min-h-0 overflow-hidden opacity-0' : ''} ${effectiveLayout === 'visual' ? 'flex-1' : ''}`}>
           <div className="w-full h-full relative">
              <div id={visualRootId} className="w-full h-full visual-grid-bg"></div>
              <div className="absolute top-2 right-2 pointer-events-none opacity-50 z-10"><span className="text-[9px] font-mono text-gray-400 bg-white/50 dark:bg-black/50 px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 backdrop-blur">Preview</span></div>
           </div>
         </div>
 
-        {/* Enhanced Vertical Resizer */}
         <div 
           onMouseDown={startResizeVertical} 
           className={`
