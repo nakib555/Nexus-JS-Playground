@@ -1,11 +1,10 @@
 import { Language } from './types';
 
 /**
- * ===============================
+ * =====================================
  * Language Runtime Definitions
- * ===============================
- * All Docker images & install commands
- * are verified to work correctly.
+ * Using FULL official Docker images
+ * =====================================
  */
 
 export const LANGUAGES: Language[] = [
@@ -21,9 +20,9 @@ export const LANGUAGES: Language[] = [
         id: 'node-docker',
         name: 'Node.js 20',
         type: 'docker',
-        version: '20-alpine',
+        version: '20',
         description: 'Node.js environment with npm support.',
-        dockerImage: 'node:20-alpine',
+        dockerImage: 'node:20', // FULL IMAGE
         extension: 'js',
         entryCommand: 'node',
         installCommand: 'npm install --no-save'
@@ -44,24 +43,21 @@ export const LANGUAGES: Language[] = [
         name: 'Python 3.11',
         type: 'docker',
         version: '3.11',
-        description: 'Standard Python environment. Supports pip.',
-        dockerImage: 'python:3.11-slim',
+        description: 'Full Python runtime with pip and system libraries.',
+        dockerImage: 'python:3.11', // FULL IMAGE
         extension: 'py',
-        entryCommand: 'python3',
-        installCommand: 'python3 -m pip install',
+        entryCommand: 'python',
+        installCommand: 'python -m pip install',
         setupCode: `
-try:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
-    def _nexus_show():
-        plt.savefig('output.png')
-        print("Saved plot to output.png")
+def _nexus_show():
+    plt.savefig('output.png')
+    print("Saved plot to output.png")
 
-    plt.show = _nexus_show
-except ImportError:
-    pass
+plt.show = _nexus_show
 `
       }
     ]
@@ -98,8 +94,8 @@ except ImportError:
         name: 'Go 1.21',
         type: 'docker',
         version: '1.21',
-        description: 'Go runtime.',
-        dockerImage: 'golang:1.21-alpine',
+        description: 'Full Go runtime.',
+        dockerImage: 'golang:1.21', // FULL IMAGE
         extension: 'go',
         entryCommand: 'go run',
         installCommand: 'go mod tidy'
@@ -120,8 +116,8 @@ except ImportError:
         name: 'Rust 1.75',
         type: 'docker',
         version: '1.75',
-        description: 'Rust runtime with Cargo support.',
-        dockerImage: 'rust:1.75-alpine',
+        description: 'Full Rust runtime with Cargo.',
+        dockerImage: 'rust:1.75', // FULL IMAGE
         extension: 'rs',
         entryCommand:
           'rustc /tmp/code.rs -O -o /tmp/main && /tmp/main',
@@ -143,8 +139,8 @@ except ImportError:
         name: 'Ruby 3.2',
         type: 'docker',
         version: '3.2',
-        description: 'Ruby runtime.',
-        dockerImage: 'ruby:3.2-alpine',
+        description: 'Full Ruby runtime.',
+        dockerImage: 'ruby:3.2', // FULL IMAGE
         extension: 'rb',
         entryCommand: 'ruby',
         installCommand: 'gem install'
@@ -165,8 +161,8 @@ except ImportError:
         name: 'PHP 8.2',
         type: 'docker',
         version: '8.2',
-        description: 'PHP CLI.',
-        dockerImage: 'php:8.2-cli-alpine',
+        description: 'Full PHP CLI runtime.',
+        dockerImage: 'php:8.2-cli', // FULL IMAGE
         extension: 'php',
         entryCommand: 'php',
         installCommand: ''
@@ -176,112 +172,65 @@ except ImportError:
 ];
 
 /**
- * ===============================
+ * =====================================
  * Editor Starter Templates
- * ===============================
+ * =====================================
  */
 
 export const LANGUAGE_TEMPLATES: Record<string, string> = {
   javascript: `// Node.js Environment
-// Import any library! Libraries will be auto-installed.
-
 const _ = require('lodash');
-const fs = require('fs');
 
-console.log("Hello from Node.js " + process.version);
-
-const numbers = [10, 20, 30, 40, 50];
-console.log("Average:", _.mean(numbers));
-
-fs.writeFileSync(
-  'output.json',
-  JSON.stringify({ status: 'active', data: numbers }, null, 2)
-);
-
-console.log("Generated output.json");
+console.log("Node version:", process.version);
+console.log("Average:", _.mean([10, 20, 30, 40, 50]));
 `,
 
   python: `# Python Environment
-# Import ANY library - it will be auto-installed!
-
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 
-print("Generating Data...")
 x = np.linspace(0, 10, 100)
 y = np.sin(x)
 
-df = pd.DataFrame({'x': x, 'y': y})
-print(df.head())
-
-print("Plotting...")
-plt.figure(figsize=(10, 6))
-plt.plot(x, y, label='Sine Wave')
-plt.title("Generated Plot")
-plt.legend()
-plt.grid(True)
+plt.plot(x, y)
+plt.title("Sine Wave")
 plt.show()
 `,
 
-  html: `<!-- Browser Renderer -->
-<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:white;">
-  <div style="text-align:center">
-    <h1>Nexus Web</h1>
-    <p>Client-side execution active.</p>
-    <button onclick="alert('Clicked!')">Test Interaction</button>
-  </div>
-</div>
+  html: `<!DOCTYPE html>
+<html>
+<body>
+  <h1>HTML Runtime Active</h1>
+  <button onclick="alert('Clicked!')">Test</button>
+</body>
+</html>
 `,
 
   go: `package main
 
-import (
-  "fmt"
-  "time"
-)
+import "fmt"
 
 func main() {
   fmt.Println("Go Runtime Active")
-
-  for i := 1; i <= 3; i++ {
-    fmt.Println("Counting", i)
-    time.Sleep(500 * time.Millisecond)
-  }
 }
 `,
 
   rust: `fn main() {
   println!("Rust Runtime Active");
-
-  let nums = vec![1, 2, 3, 4, 5];
-  let doubled: Vec<i32> = nums.iter().map(|x| x * 2).collect();
-
-  println!("Doubled: {:?}", doubled);
 }
 `,
 
-  ruby: `require 'json'
-
-puts "Ruby Runtime Active"
-
-data = { name: "Nexus", status: "Online" }
-puts JSON.pretty_generate(data)
-`,
+  ruby: `puts "Ruby Runtime Active"`,
 
   php: `<?php
 echo "PHP Runtime Active\n";
-
-$data = ["Apple", "Banana", "Cherry"];
-print_r($data);
-?>
-`
+?>`
 };
 
 /**
- * ===============================
+ * =====================================
  * Editor Theme
- * ===============================
+ * =====================================
  */
 
 export const EDITOR_THEME = {

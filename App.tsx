@@ -123,6 +123,13 @@ const App: React.FC = () => {
   const handleRun = useCallback(async () => {
     if (!selectedLanguage || !selectedInterpreter) return;
 
+    // Switch to console or preview automatically on mobile if running
+    if (window.innerWidth < 768) {
+       // We can anticipate; if code has "visual" intent, switch to preview, else console.
+       // For now, let's default to Console, and if visual content detected, switch to Preview
+       setMobileActiveTab('console');
+    }
+
     // Reset abort controller for new run
     if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -138,7 +145,11 @@ const App: React.FC = () => {
         const rootEl = getVisualRoot();
         if (rootEl) {
             setHasVisualContent(true);
-            executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => setHasVisualContent(hasContent));
+            if (window.innerWidth < 768) setMobileActiveTab('preview');
+            executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => {
+                setHasVisualContent(hasContent);
+                if (hasContent && window.innerWidth < 768) setMobileActiveTab('preview');
+            });
         }
         setIsRunning(false);
         return;
@@ -188,6 +199,7 @@ const App: React.FC = () => {
                     addLog,
                     (htmlContent) => {
                         setHasVisualContent(true);
+                        if (window.innerWidth < 768) setMobileActiveTab('preview');
                         const rootEl = getVisualRoot();
                         if (rootEl) {
                              executeUserCode(htmlContent, rootEl, addLog, 'html');
@@ -269,18 +281,18 @@ const App: React.FC = () => {
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} commands={commands} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
-      <header className="shrink-0 h-12 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl flex items-center justify-between px-3 z-50 transition-colors">
+      <header className="shrink-0 h-14 md:h-12 border-b border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl flex items-center justify-between px-3 sm:px-4 z-50 transition-colors">
         <div className="flex items-center gap-2">
-          <button onClick={handleBackToSelection} className="p-1.5 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white transition-colors" title="Change Language"><ArrowLeft size={16} /></button>
-          <div className="w-px h-5 bg-gray-200 dark:bg-white/10"></div>
-          <div className="flex flex-col ml-2">
-            <h1 className="text-xs font-bold tracking-tight text-gray-900 dark:text-white/90">{selectedLanguage.name}</h1>
-            <span className="text-[10px] text-gray-500 dark:text-white/40 font-mono hidden sm:inline-block">{selectedInterpreter.name}</span>
+          <button onClick={handleBackToSelection} className="p-2 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white transition-colors" title="Change Language"><ArrowLeft size={18} /></button>
+          <div className="w-px h-5 bg-gray-200 dark:bg-white/10 mx-1"></div>
+          <div className="flex flex-col">
+            <h1 className="text-sm font-bold tracking-tight text-gray-900 dark:text-white/90 leading-tight">{selectedLanguage.name}</h1>
+            <span className="text-[10px] text-gray-500 dark:text-white/40 font-mono hidden sm:inline-block leading-tight">{selectedInterpreter.name}</span>
           </div>
         </div>
 
         {/* Runtime Status Indicator */}
-         <div className={`absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full border transition-colors ${
+         <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full border transition-colors ${
              selectedInterpreter.type === 'docker' 
                 ? (connectionStatus.includes('Ready') 
                     ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20' 
@@ -303,13 +315,13 @@ const App: React.FC = () => {
          </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
-             <Menu size={12} />
+          <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 md:py-1 rounded-md bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-500 dark:text-gray-300 transition-all">
+             <Menu size={16} className="md:w-3 md:h-3" />
              <span className="hidden md:inline">Commands</span>
              <kbd className="hidden md:inline-flex items-center justify-center text-[9px] h-4 min-w-[16px] px-1 rounded bg-white dark:bg-black/50 border border-gray-300 dark:border-white/20">⌘P</kbd>
           </button>
-          <button onClick={handleRun} disabled={isRunning} className={`flex items-center gap-2 px-4 py-1.5 rounded-md font-semibold text-xs transition-all shadow-lg min-w-[90px] justify-center ${isRunning ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'}`}>
-             {isRunning ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <Play size={12} fill="currentColor" />}
+          <button onClick={handleRun} disabled={isRunning} className={`flex items-center gap-2 px-4 py-2 md:py-1.5 rounded-md font-semibold text-xs transition-all shadow-lg min-w-[80px] sm:min-w-[90px] justify-center ${isRunning ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-white dark:text-black dark:hover:bg-gray-200 shadow-indigo-500/20'}`}>
+             {isRunning ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"/> : <Play size={14} fill="currentColor" className="md:w-3 md:h-3" />}
              <span>Run</span>
           </button>
         </div>
@@ -341,21 +353,21 @@ const App: React.FC = () => {
       </main>
 
       {/* Modern Mobile Navigation */}
-      <nav className="shrink-0 md:hidden h-[60px] bg-white/90 dark:bg-[#0A0A0A]/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center z-50 pb-[env(safe-area-inset-bottom)] px-2 gap-1">
-         <button onClick={() => setMobileActiveTab('editor')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+      <nav className="shrink-0 md:hidden h-[60px] bg-white/90 dark:bg-[#0A0A0A]/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/10 grid grid-cols-4 items-center z-50 pb-[env(safe-area-inset-bottom)] px-2 gap-1 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
+         <button onClick={() => setMobileActiveTab('editor')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors active:scale-95 duration-150 ${mobileActiveTab === 'editor' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
             <Code2 size={20} className="stroke-[1.5]" />
             <span className="text-[10px] font-medium">Code</span>
          </button>
-         <button onClick={() => setMobileActiveTab('preview')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors ${mobileActiveTab === 'preview' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+         <button onClick={() => setMobileActiveTab('preview')} className={`flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors active:scale-95 duration-150 ${mobileActiveTab === 'preview' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
             <Monitor size={20} className="stroke-[1.5]" />
             <span className="text-[10px] font-medium">Preview</span>
          </button>
-         <button onClick={() => setMobileActiveTab('console')} className={`relative flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors ${mobileActiveTab === 'console' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+         <button onClick={() => setMobileActiveTab('console')} className={`relative flex flex-col items-center justify-center gap-1 h-full rounded-lg transition-colors active:scale-95 duration-150 ${mobileActiveTab === 'console' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}>
             <Terminal size={20} className="stroke-[1.5]" />
             <span className="text-[10px] font-medium">Console</span>
             {logs.length > 0 && <span className="absolute top-2 right-6 md:right-4 w-2 h-2 bg-indigo-500 rounded-full animate-pulse border border-white dark:border-black"></span>}
          </button>
-         <button onClick={() => setIsAIModalOpen(true)} className="flex flex-col items-center justify-center gap-1 h-full rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+         <button onClick={() => setIsAIModalOpen(true)} className="flex flex-col items-center justify-center gap-1 h-full rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors active:scale-95 duration-150">
             <Sparkles size={20} className="stroke-[1.5]" />
             <span className="text-[10px] font-medium">AI</span>
          </button>

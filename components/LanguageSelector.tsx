@@ -117,27 +117,27 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onSelect }) 
 
   return (
     <div className="fixed inset-0 z-[100] bg-gray-50 dark:bg-[#030712] transition-colors overflow-y-auto selection:bg-indigo-500/30">
-      <div className="min-h-screen w-full flex flex-col items-center py-16 px-6">
+      <div className="min-h-screen w-full flex flex-col items-center py-8 px-4 md:py-16 md:px-6">
         
         {/* Header Section */}
-        <div className="text-center mb-16 space-y-4 animate-in fade-in slide-in-from-top-4 duration-700">
-           <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-[#1e1e2e] to-[#0f0f16] shadow-2xl shadow-black/50 mb-4 ring-1 ring-white/10 group">
+        <div className="text-center mb-10 md:mb-16 space-y-4 animate-in fade-in slide-in-from-top-4 duration-700">
+           <div className="relative inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-3xl bg-gradient-to-br from-[#1e1e2e] to-[#0f0f16] shadow-2xl shadow-black/50 mb-2 md:mb-4 ring-1 ring-white/10 group">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-3xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <Terminal className="w-10 h-10 text-white relative z-10" />
+              <Terminal className="w-8 h-8 md:w-10 md:h-10 text-white relative z-10" />
            </div>
-           <h1 className="text-4xl md:text-6xl font-black text-gray-900 dark:text-white tracking-tighter">
+           <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-gray-900 dark:text-white tracking-tighter">
              Choose Runtime
            </h1>
-           <p className="text-gray-500 dark:text-gray-400 max-w-lg mx-auto text-lg font-medium leading-relaxed">
+           <p className="text-gray-500 dark:text-gray-400 max-w-sm md:max-w-lg mx-auto text-base md:text-lg font-medium leading-relaxed">
              Select a language to initialize the smart runtime environment.
-             <br/>
+             <br className="hidden sm:block"/>
              <span className="text-sm opacity-75">Auto-installs libraries on code execution.</span>
            </p>
         </div>
 
         {/* Language Grid */}
         <div className="w-full max-w-7xl animate-in fade-in slide-in-from-bottom-12 duration-700">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
             {LANGUAGES.map((lang, index) => {
               const config = LANGUAGE_CONFIG[lang.id] || DEFAULT_CONFIG;
               const Icon = config.icon;
@@ -149,7 +149,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onSelect }) 
                   onClick={() => handleLangClick(lang)}
                   onMouseEnter={() => setHoveredLang(lang.id)}
                   onMouseLeave={() => setHoveredLang(null)}
-                  className="group relative flex flex-col items-start h-full p-6 rounded-3xl bg-white dark:bg-[#09090b] border border-gray-200 dark:border-white/5 hover:border-transparent dark:hover:border-transparent transition-all duration-300 text-left overflow-hidden"
+                  className="group relative flex flex-col items-start h-full p-5 md:p-6 rounded-3xl bg-white dark:bg-[#09090b] border border-gray-200 dark:border-white/5 hover:border-transparent dark:hover:border-transparent transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-xl dark:shadow-none"
                   style={{ animationDelay: `${index * 30}ms` }}
                 >
                   {/* Hover Gradient Background */}
@@ -159,20 +159,20 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onSelect }) 
                   <div className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-black/5 dark:ring-white/5 group-hover:ring-2 group-hover:ring-inset group-hover:ring-indigo-500/20 transition-all duration-300" />
 
                   <div className="relative z-10 w-full flex flex-col h-full">
-                    <div className="flex items-start justify-between w-full mb-4">
-                      <div className={`p-3.5 rounded-2xl ${isHovered ? 'bg-white/90 dark:bg-black/40 shadow-sm' : 'bg-gray-50 dark:bg-white/5'} transition-all duration-300`}>
-                          <Icon className={`w-6 h-6 ${config.color}`} />
+                    <div className="flex items-start justify-between w-full mb-3 md:mb-4">
+                      <div className={`p-3 md:p-3.5 rounded-2xl ${isHovered ? 'bg-white/90 dark:bg-black/40 shadow-sm' : 'bg-gray-50 dark:bg-white/5'} transition-all duration-300`}>
+                          <Icon className={`w-5 h-5 md:w-6 md:h-6 ${config.color}`} />
                       </div>
                       <div className={`opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0 ${config.color}`}>
                           <ChevronRight className="w-5 h-5" />
                       </div>
                     </div>
 
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
+                    <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-1.5 md:mb-2 tracking-tight">
                       {lang.name}
                     </h3>
                     
-                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-6 flex-1">
+                    <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-4 md:mb-6 flex-1">
                       {config.description}
                     </p>
 
@@ -190,8 +190,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onSelect }) 
           </div>
         </div>
         
-        <div className="mt-auto pt-20 pb-6 text-center opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-xs text-gray-400 dark:text-gray-600 font-mono tracking-widest uppercase">
+        <div className="mt-auto pt-10 md:pt-20 pb-6 text-center opacity-60 hover:opacity-100 transition-opacity">
+          <p className="text-[10px] md:text-xs text-gray-400 dark:text-gray-600 font-mono tracking-widest uppercase">
             Nexus Playground // Smart Runtime Environment
           </p>
         </div>

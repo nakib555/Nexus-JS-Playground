@@ -178,7 +178,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-start justify-center pt-[12vh] px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[150] flex items-start justify-center pt-4 sm:pt-[12vh] px-4" onClick={onClose}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-gray-900/40 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-300" />
 
@@ -211,7 +211,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
         {/* Command List */}
         <div 
           ref={listRef}
-          className="max-h-[55vh] overflow-y-auto custom-scrollbar bg-gray-50/30 dark:bg-black/20"
+          className="max-h-[50vh] sm:max-h-[55vh] overflow-y-auto custom-scrollbar bg-gray-50/30 dark:bg-black/20"
         >
           {renderList()}
         </div>

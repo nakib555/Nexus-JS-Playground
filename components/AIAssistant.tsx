@@ -73,10 +73,10 @@ Constraints & Environment:
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-white dark:bg-[#09090b] sm:rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xl flex flex-col relative animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300">
+      <div className="w-full max-w-2xl bg-white dark:bg-[#09090b] rounded-t-2xl sm:rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xl flex flex-col relative animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 max-h-[90vh] sm:max-h-none overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/5">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-white/5 shrink-0">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-50 dark:bg-indigo-500/10 p-2 rounded-lg border border-indigo-100 dark:border-indigo-500/20">
               <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -95,7 +95,7 @@ Constraints & Environment:
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           <div className="relative group">
             <textarea
               ref={inputRef}
@@ -103,7 +103,7 @@ Constraints & Environment:
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Describe what you want to build (e.g., 'A particle system with gravity', 'Interactive data visualization')..."
-              className="w-full h-40 bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl p-4 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-700 font-mono transition-all"
+              className="w-full h-32 sm:h-40 bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl p-4 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-700 font-mono transition-all"
               disabled={loading}
             />
             <div className="absolute bottom-4 right-4 text-[10px] text-gray-400 dark:text-gray-600 bg-white dark:bg-black px-2 py-1 rounded border border-gray-200 dark:border-white/5 hidden sm:block pointer-events-none">
@@ -120,10 +120,10 @@ Constraints & Environment:
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/5 flex justify-end gap-3 bg-gray-50/[0.5] dark:bg-white/[0.02]">
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-white/5 flex justify-end gap-3 bg-gray-50/[0.5] dark:bg-white/[0.02] shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors font-medium"
+            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors font-medium hidden sm:block"
             disabled={loading}
           >
             Cancel
@@ -131,7 +131,7 @@ Constraints & Environment:
           <button
             onClick={handleGenerate}
             disabled={loading || !prompt.trim()}
-            className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-all shadow-lg
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-all shadow-lg
               ${loading || !prompt.trim()
                 ? 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-600 cursor-not-allowed'
                 : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98]'
