@@ -59,8 +59,33 @@ if (HAS_DOCKER) {
     console.warn("⚠️ Docker init failed. Falling back to local execution.", e);
   }
 } else {
-  console.log("ℹ️ Docker not found. Using local process execution.");
+  console.log("ℹ️ Docker socket not found. Switching to Polyglot Local Fallback mode.");
 }
+
+// --- Capability Check ---
+const checkRuntimes = () => {
+    console.log("--- Runtime Capabilities ---");
+    const checks = [
+        { name: 'Node.js', cmd: 'node --version' },
+        { name: 'Python 3', cmd: 'python3 --version' },
+        { name: 'Python Alias', cmd: 'python --version' },
+        { name: 'Go', cmd: 'go version' },
+        { name: 'Ruby', cmd: 'ruby --version' },
+        { name: 'PHP', cmd: 'php --version' },
+        { name: 'GCC', cmd: 'gcc --version' }
+    ];
+    
+    checks.forEach(check => {
+        try {
+            const output = execSync(check.cmd, { stdio: 'pipe' }).toString().split('\n')[0];
+            console.log(`[FOUND] ${check.name}: ${output}`);
+        } catch (e) {
+            console.log(`[MISSING] ${check.name}`);
+        }
+    });
+    console.log("---------------------------");
+};
+checkRuntimes();
 
 // --- Active Sessions ---
 const activeSessions = new Map();
@@ -153,7 +178,7 @@ io.on('connection', (socket) => {
         activeSessions.set(socket.id, { type: 'docker', id: container.id });
         socket.emit('session-ready', { containerId: container.id, mode: 'docker' });
       } else {
-        socket.emit('output', { stream: 'stdout', data: `[System] Docker not available. Using local host shell execution.\n` });
+        // Fallback: Using local environment
         const localCmd = getLocalCommand(image);
         activeSessions.set(socket.id, { type: 'local', cmd: localCmd });
         socket.emit('session-ready', { containerId: 'local-env', mode: 'local' });
@@ -182,7 +207,6 @@ io.on('connection', (socket) => {
         for (const file of userFiles) {
              const safeName = path.basename(file.name); // Basic sanitization
              // Write using shell redirect.
-             // Warning: Large files via shell echo is risky, but suitable for playground snippets.
              const writeCmd = `echo "${file.content}" | base64 -d > /workspace/${safeName}`;
              const execFile = await container.exec({ Cmd: ['sh', '-c', writeCmd] });
              await execFile.start({});
@@ -272,49 +296,6 @@ io.on('connection', (socket) => {
     } else {
       // Local Execution Fallback
       try {
-        // --- DEBUG DIAGNOSTICS START ---
-        const debugEnv = {
-            platform: process.platform,
-            arch: process.arch,
-            nodeVersion: process.version,
-            cwd: process.cwd(),
-            path: process.env.PATH || '',
-            user: process.env.USER || process.env.USERNAME || 'unknown',
-            tempDir: tempDir,
-            hasPython: false,
-            hasPython3: false,
-            hasNode: false
-        };
-
-        // Simple check for binaries
-        try { execSync('python --version', { stdio: 'ignore' }); debugEnv.hasPython = true; } catch(e){}
-        try { execSync('python3 --version', { stdio: 'ignore' }); debugEnv.hasPython3 = true; } catch(e){}
-        try { execSync('node --version', { stdio: 'ignore' }); debugEnv.hasNode = true; } catch(e){}
-
-        const debugMessage = `
-[DEBUG DIAGNOSTICS]
-----------------------------------------
-System: ${debugEnv.platform} (${debugEnv.arch})
-Node Runtime: ${debugEnv.nodeVersion}
-User: ${debugEnv.user}
-WorkDir: ${debugEnv.cwd}
-TempDir: ${debugEnv.tempDir}
-PATH:
-${debugEnv.path.split(path.delimiter).map(p => `  - ${p}`).join('\n')}
-
-Binaries:
-- python: ${debugEnv.hasPython ? 'FOUND' : 'MISSING'}
-- python3: ${debugEnv.hasPython3 ? 'FOUND' : 'MISSING'}
-- node: ${debugEnv.hasNode ? 'FOUND' : 'MISSING'}
-
-Execution:
-- Entry Command: ${entryCommand}
-- Target File: ${filePath}
-----------------------------------------
-`;
-        socket.emit('output', { stream: 'stdout', data: debugMessage });
-        // --- DEBUG DIAGNOSTICS END ---
-
         fs.writeFileSync(filePath, code);
         
         // Write user files to temp dir
@@ -336,7 +317,15 @@ Execution:
           }
         }
         
-        const child = spawn(cmd, args, { cwd: tempDir, env:{...process.env, MPLBACKEND:'Agg'} });
+        const child = spawn(cmd, args, { 
+            cwd: tempDir, 
+            env: {
+                ...process.env, 
+                MPLBACKEND: 'Agg',
+                PYTHONUNBUFFERED: '1'
+            } 
+        });
+        
         session.process = child;
         child.stdout.on('data', d=>socket.emit('output',{stream:'stdout',data:d.toString()}));
         child.stderr.on('data', d=>socket.emit('output',{stream:'stderr',data:d.toString()}));
