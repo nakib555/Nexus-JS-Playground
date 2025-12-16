@@ -1,3 +1,4 @@
+
 import { LogType, LogEntry, VirtualFile } from '../types';
 
 /**
@@ -67,7 +68,11 @@ export const executeUserCode = (
                 throw new Error("ENOENT: no such file or directory, open '" + path + "'");
             }
             const binary = atob(fileContent);
-            if (!encoding || encoding === 'utf8' || encoding === 'utf-8') return binary;
+            if (!encoding || encoding === 'utf8' || encoding === 'utf-8') {
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                return new TextDecoder().decode(bytes);
+            }
             return binary; 
          },
          writeFileSync: (path, content) => {

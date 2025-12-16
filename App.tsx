@@ -189,15 +189,15 @@ const App: React.FC = () => {
         executorCleanupRef.current = null;
     }
 
-    setIsRunning(true);
+    // Don't clear logs on auto-run (live mode) to preserve context
     if (!isAutoRun) handleClearLogs();
-    setHasVisualContent(false);
-
+    
     // Browser Mode
     if (selectedInterpreter.type === 'browser') {
+        setIsRunning(true);
+        setHasVisualContent(true);
         const rootEl = document.getElementById('visual-root');
         if (rootEl) {
-            setHasVisualContent(true);
             executorCleanupRef.current = executeUserCode(code, rootEl, addLog, 'html', undefined, (hasContent) => {
                 setHasVisualContent(hasContent);
             }, files);
@@ -210,10 +210,20 @@ const App: React.FC = () => {
     if (selectedInterpreter.type === 'docker') {
         if (connectionStatus === 'Disconnected' || connectionStatus === 'Connection Failed') {
              addLog(LogType.SYSTEM, ['[System] Connecting to runtime environment...']);
+             setIsRunning(true); // Show loading state
              establishConnection(selectedLanguage, selectedInterpreter);
+             // Stop execution here until connected
+             return;
         }
 
-        // We allow sending run command even if connecting (it connects automatically)
+        if (connectionStatus === 'Connecting...') {
+             addLog(LogType.WARN, ['[System] Still connecting to runtime... Please wait.']);
+             return;
+        }
+
+        setIsRunning(true);
+        setHasVisualContent(false);
+
         const libs = detectLibraries(code, selectedLanguage.id);
         let finalCode = code;
         let command = selectedInterpreter.entryCommand || '';
