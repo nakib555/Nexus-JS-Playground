@@ -62,6 +62,45 @@ if (HAS_DOCKER) {
   console.log("ℹ️ Docker socket not found. Switching to Polyglot Local Fallback mode.");
 }
 
+// --- Helper: Ensure Image Exists (Auto-Pull) ---
+const ensureImage = async (imageName) => {
+  if (!docker) return;
+  
+  try {
+    const images = await docker.listImages();
+    const exists = images.some(img => img.RepoTags && img.RepoTags.includes(imageName));
+    
+    if (exists) {
+      return;
+    }
+
+    console.log(`[Docker] Image '${imageName}' not found locally. Pulling...`);
+    
+    await new Promise((resolve, reject) => {
+      docker.pull(imageName, (err, stream) => {
+        if (err) return reject(err);
+        
+        // Follow progress to wait for completion
+        docker.modem.followProgress(stream, onFinished, onProgress);
+
+        function onFinished(err, output) {
+          if (err) return reject(err);
+          console.log(`[Docker] Successfully pulled '${imageName}'.`);
+          resolve(output);
+        }
+
+        function onProgress(event) {
+          // Optional: Log progress if needed
+        }
+      });
+    });
+
+  } catch (e) {
+    console.error(`[Docker] Failed to pull image '${imageName}':`, e.message);
+    throw new Error(`Failed to pull image ${imageName}. Ensure internet connection.`);
+  }
+};
+
 // --- Capability Check ---
 const checkRuntimes = () => {
     console.log("--- Runtime Capabilities ---");
@@ -93,7 +132,7 @@ const activeSessions = new Map();
 const getLocalCommand = (image) => {
   if (image.includes('node')) return 'node';
   if (image.includes('python')) return 'python';
-  if (image.includes('golang')) return 'go run';
+  if (image.includes('golang') || image.includes('go')) return 'go run';
   if (image.includes('ruby')) return 'ruby';
   if (image.includes('php')) return 'php';
   if (image.includes('alpine') && !image.includes('gxx')) return 'sh';
@@ -165,21 +204,52 @@ io.on('connection', (socket) => {
   socket.on('init-session', async ({ language, image }) => {
     try {
       if (activeSessions.has(socket.id)) await cleanupSession(socket.id);
+      
       if (HAS_DOCKER && docker) {
+        socket.emit('output', { stream: 'stdout', data: `[System] Configuring environment for ${language}...` });
+        
+        // 1. Ensure Image Exists (Optimization for "Any Language")
+        await ensureImage(image);
+
+        // 2. Create Container with Strict Limits
+        // 0.1 CPU = 10,000 quota / 100,000 period
+        // 512 MB RAM
         const container = await docker.createContainer({
           Image: image,
           Cmd: ['/bin/sh', '-c', 'mkdir -p /workspace && while true; do sleep 1000; done'],
           Tty: false,
           OpenStdin: true,
-          WorkingDir: '/workspace', // Dedicated workspace
-          HostConfig: { Memory: 512*1024*1024, CpuPeriod:100000, CpuQuota:50000, AutoRemove:true, NetworkMode:'bridge' } // Allow network for installations
+          WorkingDir: '/workspace',
+          HostConfig: { 
+            // Memory Limits
+            Memory: 512 * 1024 * 1024,      // 512 MB
+            MemorySwap: 512 * 1024 * 1024,  // Disable swap usage beyond limit
+            
+            // CPU Limits
+            CpuPeriod: 100000,
+            CpuQuota: 10000,                // 0.1 CPU (10%)
+            
+            // Stability Optimizations
+            PidsLimit: 50,                  // Prevent fork bombs
+            OomKillDisable: false,          // Allow OOM Kill to protect host
+            BlkioWeight: 500,               // Standard IO priority
+            
+            // Network & Cleanup
+            AutoRemove: true,
+            NetworkMode: 'bridge'           // Allow installing packages
+          } 
         });
+
         await container.start();
         activeSessions.set(socket.id, { type: 'docker', id: container.id });
         socket.emit('session-ready', { containerId: container.id, mode: 'docker' });
       } else {
         // Fallback: Using local environment
         const localCmd = getLocalCommand(image);
+        if (!localCmd) {
+           socket.emit('error', `Local execution for ${image} is not supported. Please install Docker.`);
+           return;
+        }
         activeSessions.set(socket.id, { type: 'local', cmd: localCmd });
         socket.emit('session-ready', { containerId: 'local-env', mode: 'local' });
       }

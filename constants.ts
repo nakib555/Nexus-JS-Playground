@@ -3,7 +3,7 @@ import { Language } from './types';
 /**
  * =====================================
  * Language Runtime Definitions
- * Using FULL official Docker images
+ * Using Optimized Docker images (Slim/Alpine)
  * =====================================
  */
 
@@ -17,12 +17,23 @@ export const LANGUAGES: Language[] = [
     prismId: 'javascript',
     interpreters: [
       {
-        id: 'node-docker',
-        name: 'Node.js 20',
+        id: 'node-20-slim',
+        name: 'Node.js 20 (Slim)',
         type: 'docker',
-        version: '20',
-        description: 'Node.js environment with npm support.',
-        dockerImage: 'node:20', // FULL IMAGE
+        version: 'v20.x',
+        description: 'Latest LTS (Lightweight)',
+        dockerImage: 'node:20-slim',
+        extension: 'js',
+        entryCommand: 'node',
+        installCommand: 'npm install --no-save'
+      },
+      {
+        id: 'node-18-alpine',
+        name: 'Node.js 18 (Alpine)',
+        type: 'docker',
+        version: 'v18.x',
+        description: 'Previous LTS (Minimal)',
+        dockerImage: 'node:18-alpine',
         extension: 'js',
         entryCommand: 'node',
         installCommand: 'npm install --no-save'
@@ -39,15 +50,15 @@ export const LANGUAGES: Language[] = [
     prismId: 'python',
     interpreters: [
       {
-        id: 'python-docker',
-        name: 'Python 3.11',
+        id: 'python-3.11-slim',
+        name: 'Python 3.11 (Slim)',
         type: 'docker',
         version: '3.11',
-        description: 'Full Python runtime with pip and system libraries.',
-        dockerImage: 'python:3.11', // FULL IMAGE
+        description: 'Optimized Standard Runtime',
+        dockerImage: 'python:3.11-slim',
         extension: 'py',
         entryCommand: 'python',
-        installCommand: 'python -m pip install',
+        installCommand: 'pip install --no-cache-dir',
         setupCode: `
 import matplotlib
 matplotlib.use('Agg')
@@ -59,6 +70,17 @@ def _nexus_show():
 
 plt.show = _nexus_show
 `
+      },
+      {
+        id: 'python-3.9-alpine',
+        name: 'Python 3.9 (Alpine)',
+        type: 'docker',
+        version: '3.9',
+        description: 'Legacy Minimal Runtime',
+        dockerImage: 'python:3.9-alpine',
+        extension: 'py',
+        entryCommand: 'python',
+        installCommand: 'pip install --no-cache-dir'
       }
     ]
   },
@@ -90,12 +112,23 @@ plt.show = _nexus_show
     prismId: 'go',
     interpreters: [
       {
-        id: 'go-docker',
-        name: 'Go 1.21',
+        id: 'go-1.21-alpine',
+        name: 'Go 1.21 (Alpine)',
         type: 'docker',
         version: '1.21',
-        description: 'Full Go runtime.',
-        dockerImage: 'golang:1.21', // FULL IMAGE
+        description: 'Lightweight Go Runtime',
+        dockerImage: 'golang:1.21-alpine',
+        extension: 'go',
+        entryCommand: 'go run',
+        installCommand: 'go mod tidy'
+      },
+      {
+        id: 'go-1.19',
+        name: 'Go 1.19',
+        type: 'docker',
+        version: '1.19',
+        description: 'Legacy Go Runtime',
+        dockerImage: 'golang:1.19-alpine',
         extension: 'go',
         entryCommand: 'go run',
         installCommand: 'go mod tidy'
@@ -115,12 +148,12 @@ plt.show = _nexus_show
         id: 'rust-docker',
         name: 'Rust 1.75',
         type: 'docker',
-        version: '1.75',
-        description: 'Full Rust runtime with Cargo.',
-        dockerImage: 'rust:1.75', // FULL IMAGE
+        version: '1.75 (Slim)',
+        description: 'Rust runtime with Cargo.',
+        dockerImage: 'rust:1.75-slim',
         extension: 'rs',
         entryCommand:
-          'rustc /tmp/code.rs -O -o /tmp/main && /tmp/main',
+          'rustc /workspace/code.rs -O -o /workspace/main && /workspace/main',
         installCommand: ''
       }
     ]
@@ -138,9 +171,9 @@ plt.show = _nexus_show
         id: 'ruby-docker',
         name: 'Ruby 3.2',
         type: 'docker',
-        version: '3.2',
-        description: 'Full Ruby runtime.',
-        dockerImage: 'ruby:3.2', // FULL IMAGE
+        version: '3.2 (Slim)',
+        description: 'Optimized Ruby runtime.',
+        dockerImage: 'ruby:3.2-slim',
         extension: 'rb',
         entryCommand: 'ruby',
         installCommand: 'gem install'
@@ -160,9 +193,9 @@ plt.show = _nexus_show
         id: 'php-docker',
         name: 'PHP 8.2',
         type: 'docker',
-        version: '8.2',
-        description: 'Full PHP CLI runtime.',
-        dockerImage: 'php:8.2-cli', // FULL IMAGE
+        version: '8.2 (CLI)',
+        description: 'PHP CLI runtime.',
+        dockerImage: 'php:8.2-cli-alpine',
         extension: 'php',
         entryCommand: 'php',
         installCommand: ''
